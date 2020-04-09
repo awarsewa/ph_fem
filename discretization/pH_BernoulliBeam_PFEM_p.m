@@ -2,7 +2,7 @@ function [n, J, Q, G] = pH_BernoulliBeam_PFEM_p(N_p, N_q, myu, E, I, L)
     addpath '../.'
     % Interpolation interval
     interval = [0, L];
-
+    
     % NOTE: For the folliwing, the Chebfun package is required!
     %       See http://www.chebfun.org/ for details.
     %       After downloading Chebfun, make sure to add it to the Matlab PATH
@@ -55,13 +55,17 @@ function [n, J, Q, G] = pH_BernoulliBeam_PFEM_p(N_p, N_q, myu, E, I, L)
         end
     end 
     
+    %{
     % Input/output mappings (clamped-free boundary conditions)
     Tq1 = [     deriv(phi_p,interval(1),1);    % Ma
                 deriv(phi_p,interval(2),1)];   % Mb
     Tq2 = [     phi_p(interval(1));            % Fa
                 phi_p(interval(2))];           % Fb
-            
+                
     Bp = [ Tq1', Tq2' ];
+    %}
+    
+    Bp = [  deriv(phi_p,linspace(0, L, max(N_q-3, 2))',1)', phi_p(linspace(0, L, max(N_q-3,2))')'];
     
     % Energy matrix
     Qq = E*I*M_q^-1;
@@ -73,7 +77,7 @@ function [n, J, Q, G] = pH_BernoulliBeam_PFEM_p(N_p, N_q, myu, E, I, L)
     J = [zeros(N_p, N_q) -D;
          D' zeros(N_q, N_p)];
     % Input\matrix + feedthrough matrix
-    G = [Bp; zeros(N_p, 4)];
+    G = [Bp; zeros(N_p, size(Bp, 2))];
     
     decimalPrecision = 14;  
     J = round(J, decimalPrecision);

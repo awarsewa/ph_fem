@@ -8,13 +8,13 @@ function [n, J, Q, G] = pH_TimoshenkoBeam_PFEM_p(N_p, N_q, rho, E, G, A, I, kapp
     %       After downloading Chebfun, make sure to add it to the Matlab PATH
 
     % collocation points are the Gauss-Legendre nodes
-    %z_p = legpts(N_p, interval);
-    %z_q = legpts(N_q, interval);
+    z_p = legpts(N_p, interval);
+    z_q = legpts(N_q, interval);
     % Construct polynomial bases (Lagrange polynomial)
-    %phi_p = chebfun.lagrange(z_p, interval);
-    %phi_q = chebfun.lagrange(z_q, interval); 
-    phi_p = chebfun.lagrange(linspace(0, L, N_p), interval);
-    phi_q = chebfun.lagrange(linspace(0, L, N_q), interval);
+    phi_p = chebfun.lagrange(z_p, interval);
+    phi_q = chebfun.lagrange(z_q, interval); 
+    %phi_p = chebfun.lagrange(linspace(0, L, N_p), interval);
+    %phi_q = chebfun.lagrange(linspace(0, L, N_q), interval);
     
     
     % Cumpute int_Z phi_pz * phi_q' dz --> D
@@ -56,13 +56,18 @@ function [n, J, Q, G] = pH_TimoshenkoBeam_PFEM_p(N_p, N_q, rho, E, G, A, I, kapp
         end
     end 
     
+    %{
     % Input/output mappings (clamped-free boundary conditions)
     Tq = [     phi_p(interval(1));            % Ma/Fa
                phi_p(interval(2))];           % Mb/Fb
             
     Bp = [ Tq', zeros(N_p, 2);      % M
-           zeros(N_p, 2), Tq'];     % F
-
+          zeros(N_p, 2), Tq'];     % F
+    %}
+    
+    Bp = [ phi_p(linspace(0, L, max(N_q,2))')', zeros(N_p, max(N_q,2));
+           zeros(N_p, max(N_q,2)), phi_p(linspace(0, L, max(N_q,2))')'];
+    
     % Energy matrix
     Qq1 = E*I*M_q^-1;
     Qq2 = kappa*A*G*M_q^-1;
@@ -79,7 +84,7 @@ function [n, J, Q, G] = pH_TimoshenkoBeam_PFEM_p(N_p, N_q, rho, E, G, A, I, kapp
          D' zeros(N_q, 2*N_p + N_q);
          -M_q D' zeros(N_q, 2*N_p)];
     % Input matrix + feedthrough matrix
-    G = [Bp; zeros(2*N_q, 4)];
+    G = [Bp; zeros(2*N_q, size(Bp, 2))];
     
     decimalPrecision = 14;  
     J = round(J, decimalPrecision);

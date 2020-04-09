@@ -60,11 +60,14 @@ function [n, J, Q, G] = pH_Link_PFEM_p(N_p, N_q, myu, E, A, L)
     % Input/output mappings 
     % If we apply integration by parts to the impulse equations, our inputs 
     % are forces 
+    %{
     Tq1 = phi_p(interval(1));  % F_a
     Tq2 = phi_p(interval(2));   % F_b       
 
     Bp = [ Tq1', Tq2' ];
-
+    %}
+    Bp = phi_p(linspace(0, L, max(N_q,2))')';
+    
     % Energy matrix
     Qq = E*A*M_q^-1;
     Qp = 1/myu*M_p^-1;
@@ -75,7 +78,7 @@ function [n, J, Q, G] = pH_Link_PFEM_p(N_p, N_q, myu, E, A, L)
     J = [zeros(N_p, N_q) -D;
          D' zeros(N_q, N_p)];
     % Input matrix + feedthrough matrix
-    G = [Bp; zeros(N_q, 2)];
+    G = [Bp; zeros(N_q, size(Bp, 2))];
     
     decimalPrecision = 14;
     
