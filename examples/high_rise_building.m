@@ -184,7 +184,7 @@ time = 1:0.01:5;
 odefun_ph = @(t, x) A*x;
 odefun_fe = @(t, x) A_fe*x;
 [~, y_ph] = ode15s(odefun_ph, time, x0_ph);
-[~, y_fe] = ode15s(odefun_fe, time, x0_fe);
+%[~, y_fe] = ode15s(odefun_fe, time, x0_fe);
 
 %% Plots
 c_x = 1:6:6*13*4;

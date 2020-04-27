@@ -4,7 +4,8 @@ The code in this repository can be used to assemble 3D linear elastic mechanical
 A detailed explanation of the methods and algorithms employed will be available in form of a scientific paper after publication. Check here for updates. For now, please refer to the provided examples to learn about the usage of the framework. 
 
 ## Dependencies
-Running this code requires the [chebfun](https://www.chebfun.org/) package (v5.70 or later) that can be downloaded free of charge from [this link](https://github.com/chebfun/chebfun/archive/master.zip).
+The function [lgwt](https://www.mathworks.com/matlabcentral/fileexchange/4540-legendre-gauss-quadrature-weights-and-nodes) written by Greg von Winckel is used to compute the Gauss-Legendre quadrature weights and nodes.
+It is included in the repository so there is no need to download it.
 
 ## License 
 See the [LICENSE](LICENSE) file for license rights and limitations (GNU GPL3).

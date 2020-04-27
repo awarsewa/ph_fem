@@ -1,58 +1,53 @@
 function [n, J, Q, G] = pH_TimoshenkoBeam_PFEM_p(N_p, N_q, rho, E, G, A, I, kappa, L) 
-    addpath '../.'
     % Interpolation interval
     interval = [0, L];
+    nodes_p = linspace(0, L, N_p);
+    nodes_q = linspace(0, L, N_q);
 
-    % NOTE: For the folliwing, the Chebfun package is required!
-    %       See http://www.chebfun.org/ for details.
-    %       After downloading Chebfun, make sure to add it to the Matlab PATH
+    % Construct polynomial bases (Lagrange polynomials)
+    phi_p = lagrange_poly(nodes_p);
+    phi_q = lagrange_poly(nodes_q);
+    
+    % For the weak form of the Stokes-Dirac structure choose the flow bases
+    % as test functions v(z)
 
-    % collocation points are the Gauss-Legendre nodes
-    z_p = legpts(N_p, interval);
-    z_q = legpts(N_q, interval);
-    % Construct polynomial bases (Lagrange polynomial)
-    phi_p = chebfun.lagrange(z_p, interval);
-    phi_q = chebfun.lagrange(z_q, interval); 
-    %phi_p = chebfun.lagrange(linspace(0, L, N_p), interval);
-    %phi_q = chebfun.lagrange(linspace(0, L, N_q), interval);
-    
-    
     % Cumpute int_Z phi_pz * phi_q' dz --> D
     % First we need the Gauss-Legendre nodes + weights for N_p + N_q
     N_d = N_p + N_q - 3;
     n_d = ceil((N_d +1)/2); 
-    [d, w_d] = legpts(n_d, interval);
+    [d, w_d] = lgwt(n_d, interval(1), interval(2));
     % Now compute the integral...
     D = zeros(N_p, N_q);
-    phi_pd = deriv(phi_p, d, 1);
+    phi_pd = lagrange_poly_deriv(nodes_p, 1);
+    phi_pd = phi_pd(d);
     phi_qd = phi_q(d);
     for i=1:N_p
         for j=1:N_q
-            D(i,j) = w_d * (phi_pd(:, i) .* phi_qd(:, j));
+            D(i,j) = w_d' * (phi_pd(:, i) .* phi_qd(:, j));
         end
     end 
     
     % Compute M_p
     N_mp = 2* N_p -2;
     n_mp = ceil((N_mp +1)/2); 
-    [mp, w_mp] = legpts(n_mp, interval);
+    [mp, w_mp] = lgwt(n_mp, interval(1), interval(2));
     M_p = zeros(N_p,N_p);
     phi_pm = phi_p(mp);
     for i=1:N_p
         for j=1:N_p
-            M_p(i,j) = w_mp * (phi_pm(:, i) .* phi_pm(:, j));
+            M_p(i,j) = w_mp' * (phi_pm(:, i) .* phi_pm(:, j));
         end
     end 
     
     % Compute M_q
     N_mq = 2* N_q -2;
     n_mq = ceil((N_mq +1)/2); 
-    [mq, w_mq] = legpts(n_mq, interval);
+    [mq, w_mq] = lgwt(n_mq,  interval(1), interval(2));
     M_q = zeros(N_q,N_q);
-    phi_qm = phi_q(mq);
+    phi_qm = phi_p(mq);
     for i=1:N_q
         for j=1:N_q
-            M_q(i,j) = w_mq * (phi_qm(:, i) .* phi_qm(:, j));
+            M_q(i,j) = w_mq' * (phi_qm(:, i) .* phi_qm(:, j));
         end
     end 
     
