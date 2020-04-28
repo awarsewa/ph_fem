@@ -67,10 +67,11 @@ t = 0:0.01:3;
 B = zeros(mesh.n_u, 1);
 B(16) = 1;
 % Setup state derivative function for the pH-system
-ph_odefun = @(t, x) mesh.A*[x; B*(50000/3*t)];
+A_ph = [(mesh.J-mesh.R)*mesh.Q, mesh.G - mesh.P];
+ph_odefun = @(t, x) A_ph*[x; B*(50000/3*t)];
 
 % Simulate the excited system
-[time, x_ph] = ode45(ph_odefun, t, zeros(size(mesh.A,1),1)); 
+[time, x_ph] = ode45(ph_odefun, t, zeros(size(A_ph,1),1)); 
 
 %% Output
 y_ph = zeros(length(t), mesh.n_u);

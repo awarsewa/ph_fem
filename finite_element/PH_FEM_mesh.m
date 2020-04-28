@@ -3,6 +3,7 @@ classdef PH_FEM_mesh < PH_LinearSystem
         nodeTable
         elementTable
         elementTypes
+        attribs
     end
     
     methods(Access = public)
@@ -35,7 +36,7 @@ classdef PH_FEM_mesh < PH_LinearSystem
                 attributes = cell(n_e, 1);
             end
             
-            obj = obj@PH_LinearSystem(0, [], zeros(0), zeros(0), zeros(0));
+            obj = obj@PH_LinearSystem(0, zeros(0), zeros(0), zeros(0));
             
             
             for n=1:n_n
@@ -72,6 +73,7 @@ classdef PH_FEM_mesh < PH_LinearSystem
             obj.nodeTable = nodeArray;
             obj.elementTable = elementArray;
             obj.elementTypes = elements;
+            obj.attribs = attributes;
         end
         
         % Modified add function that removes duplicate nodes
@@ -231,6 +233,12 @@ classdef PH_FEM_mesh < PH_LinearSystem
                     end
                 end
             end
+        end
+    end
+    
+    methods(Access = protected)        
+        function cp = copyElement(obj)
+            cp = PH_FEM_mesh(obj.nodeTable, obj.elementTable, obj.elementTypes, obj.attribs);
         end
     end
 end

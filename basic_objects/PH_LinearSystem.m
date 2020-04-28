@@ -18,13 +18,11 @@ classdef PH_LinearSystem < PH_System
         C_y     % Matrix for I/O coupling
         
         B       % Algebraic constraints on efforts
-        A       % System matrix for simulation
-        E       % Jacobian matrix for simulation
     end
     
     methods(Access = public)
-        %              PH_LinearSystem(n, E, J, Q, G, R, K, P, S, M, B)
-        function obj = PH_LinearSystem(n, E, J, Q, varargin)
+        %              PH_LinearSystem(n, J, Q, G, R, P, S, M, B)
+        function obj = PH_LinearSystem(n, J, Q, varargin)
             % Sanity checks
             obj = obj@PH_System('Linear port-Hamiltonian system');
            
@@ -33,17 +31,7 @@ classdef PH_LinearSystem < PH_System
                 error('n must be >= 0');
             end
             obj.n = n;
-            
-            
-            if isempty(E)
-                obj.E = eye(n);
-            elseif ~ismatrix(E) || any(size(E) ~= n) 
-                error('E must be a nxn matrix');
-            else
-                obj.E = E;
-            end
-
-            
+                       
             if ~ismatrix(J) || any(size(J) ~= n) || ~issymmetric(J, 'skew')
                 error('J must be a skew-symmetric nxn matrix');
             end
@@ -57,7 +45,7 @@ classdef PH_LinearSystem < PH_System
             % Inputs and Outputs
             obj.n_u = 0; 
             obj.G = zeros(obj.n, 0);
-            if nargin > 4 && ~isempty(varargin{1})
+            if nargin > 3 && ~isempty(varargin{1})
                 G = varargin{1};
                 if ~ismatrix(G) || size(G, 1) ~= n
                     error('G must be a matrix with n rows');
@@ -68,7 +56,7 @@ classdef PH_LinearSystem < PH_System
             
             % Dissipation
             obj.R = zeros(n);
-            if nargin > 5
+            if nargin > 4
                 R = varargin{2};
                 if ~isempty(R)
                     if ~ismatrix(R) || any(size(R) ~= n) || ~issymmetric(R) || any(round(eig(R),17) < 0)
@@ -82,7 +70,7 @@ classdef PH_LinearSystem < PH_System
             obj.P = zeros(obj.n, obj.n_u); 
             obj.M = zeros(obj.n_u);
             obj.S = zeros(obj.n_u);
-            if nargin > 8
+            if nargin > 7
                 P = varargin{3};
                 S = varargin{4};
                 M = varargin{5};
@@ -116,7 +104,7 @@ classdef PH_LinearSystem < PH_System
             obj.C_y = zeros(0, obj.n_u);
             
             obj.B = zeros(obj.n, 0);
-            if nargin > 9 
+            if nargin > 8 
                 B = varargin{6};
                 if size(B, 1) ~= obj.n 
                     error('B must be a n x n_c matrix');
@@ -125,11 +113,6 @@ classdef PH_LinearSystem < PH_System
                 obj.B = B;
             end
             obj.n_c = size(obj.B, 2);
-            
-            obj.A = [(obj.J - obj.R)*obj.Q, obj.G - obj.P;
-                    obj.B', zeros(obj.n_c, obj.n_u)];
-            obj.E = [obj.E, zeros(obj.n, obj.n_u);
-                    zeros(obj.n_c, obj.n+obj.n_u)];
                 
             obj.n_elements = 1;
             obj.elements{1} = PH_Element('Linear PH system', [], []);
@@ -199,13 +182,7 @@ classdef PH_LinearSystem < PH_System
             
             N_b2 = system.n/2; 
             N_a = obj.n;            
-                                  
-            Ea = obj.E(1:obj.n, 1:obj.n);
-            Eb = system.E(1:system.n, 1:system.n);
             
-            obj.E = [Eb(1:N_b2,1:N_b2) zeros(N_b2, N_a) Eb(1:N_b2, N_b2+1:end);
-                  zeros(N_a, N_b2) Ea zeros(N_a, N_b2);
-                  Eb(N_b2+1:end, 1:N_b2) zeros(N_b2, N_a) Eb(N_b2+1:end, N_b2+1:end)];
             obj.J = [system.J(1:N_b2,1:N_b2) zeros(N_b2, N_a) system.J(1:N_b2, N_b2+1:end);
                   zeros(N_a, N_b2) obj.J zeros(N_a, N_b2);
                   system.J(N_b2+1:end, 1:N_b2) zeros(N_b2, N_a) system.J(N_b2+1:end, N_b2+1:end)];
@@ -271,19 +248,13 @@ classdef PH_LinearSystem < PH_System
             obj.n_elements = obj.n_elements + system.n_elements; 
             obj.n = obj.n + system.n;
             obj.n_u = obj.n_u + system.n_u;
-            
-            obj.A = [(obj.J - obj.R)*obj.Q, obj.G - obj.P;
-                     obj.B', zeros(obj.n_c, obj.n_u)];
-            obj.E = [obj.E, zeros(obj.n, obj.n_u);
-                    zeros(obj.n_c, obj.n+obj.n_u)];
         end
         
         function add_single(obj, system)
             if ~isa(system, 'PH_LinearSystem') || ~system.isValidPHSystem()
                 error('system must be a valid ''PH_LinearSystem''');
             end
-            
-            obj.E = blkdiag(obj.E(1:obj.n, 1:obj.n), system.E(1:system.n, 1:system.n));
+
             obj.J = blkdiag(obj.J, system.J);
             obj.R = blkdiag(obj.R, system.R);
             obj.Q = blkdiag(obj.Q, system.Q);
@@ -328,11 +299,6 @@ classdef PH_LinearSystem < PH_System
             obj.n_elements = obj.n_elements + system.n_elements; 
             obj.n = obj.n + system.n;
             obj.n_u = obj.n_u + system.n_u;
-            
-            obj.A = [(obj.J - obj.R)*obj.Q, obj.G - obj.P;
-                     obj.B', zeros(obj.n_c, obj.n_u)];
-            obj.E = [obj.E, zeros(obj.n, obj.n_u);
-                    zeros(obj.n_c, obj.n+obj.n_u)];
         end
         
         % Generate constraints of the form Cy * y + Cu * u = 0.
@@ -356,7 +322,7 @@ classdef PH_LinearSystem < PH_System
             % call assemble() followed by eliminateAlgebraicConstraints()
         end
 
-        % Eliminates the Ce, Cf, Cu, Cy constraints by solving for u ??
+        % Eliminates the Cu, Cy constraints by solving for u 
         % In the process, a set of algebraic constraints of the form B'*e = 0
         % are usually generated. They can be eliminated by a call to
         % eliminateAlgebraicConstraints
@@ -366,20 +332,25 @@ classdef PH_LinearSystem < PH_System
                 return
             end
                         
+            if any(any(obj.C_e)) || any(any(obj.C_f))
+                warning('Constraints on efforts and flows are not handled... setting to zero');
+                obj.C_e = [];
+                obj.C_f = [];
+            end
+            
+            
             % Get algebraic constraints
             idx_ac = ~any(obj.C_u');
             B_y = obj.C_y(idx_ac, :) * (obj.G+obj.P)';         
             if ~isempty(obj.B)
-                obj.B = [obj.B, rref(B_y)']; 
+                obj.B = [obj.B, B_y'];
             else
-                obj.B = rref(B_y)';
+                obj.B = B_y';
             end
             obj.B(:, ~any(obj.B)) = [];    
             obj.C_y(idx_ac, :) = [];
             obj.C_u(idx_ac, :) = [];
                         
-            C = rref([obj.C_u, obj.C_y]);
-            obj.C_y = C(:, obj.n_u+1:2*obj.n_u);
             
             % Solve remaining equations for u
             u_f = ones(1, obj.n_u);
@@ -439,10 +410,11 @@ classdef PH_LinearSystem < PH_System
             
             % remove dependent inputs
             u_dep = sort(u_dep, 'descend');
+            ports = zeros(1, length(u_dep));
             for i=1:length(u_dep)
-                port = obj.getPortForIOPair(u_dep(i));
-                obj.deleteExternalPort(port);
+                ports(i) = obj.getPortForIOPair(u_dep(i));
             end
+            obj.deleteExternalPorts(ports);
             u_new = 1:length(u_new);
             
             % Assign new system matrices
@@ -459,10 +431,11 @@ classdef PH_LinearSystem < PH_System
           
             u_dep = u_new(idx_u0);
             u_dep = sort(u_dep, 'descend');
+            ports = zeros(1, length(u_dep));
             for i=1:length(u_dep)
-                port = obj.getPortForIOPair(u_dep(i));
-                obj.deleteExternalPort(port);
+                ports(i) = obj.getPortForIOPair(u_dep(i));
             end
+            obj.deleteExternalPorts(ports);
             
             % System check... 
             if ~obj.isValidPHSystem()
@@ -470,19 +443,15 @@ classdef PH_LinearSystem < PH_System
             end
             
             % All I/O coupling constraints are now eliminated
-            obj.C_u = [];
-            obj.C_y = [];
+            obj.C_u = zeros(0, obj.n_u);
+            obj.C_y = zeros(0, obj.n_u);
+            obj.C_e = zeros(0, obj.n);
+            obj.C_f = zeros(0, obj.n);
             
             % Some algebraic constraints might remain
             % Call eliminateAlgebraicConstraints() to eliminate them
             % This also eliminates constraint forces (inputs)
             obj.n_c = size(obj.B, 2);
-            
-            % Apply changes to A and E
-            obj.A = [(obj.J - obj.R)*obj.Q, zeros(obj.n, obj.n_c), obj.G - obj.P;
-                    obj.B', zeros(obj.n_c, obj.n_c + obj.n_u)];
-            obj.E = [obj.E(1:obj.n, 1:obj.n), zeros(obj.n, obj.n_c+obj.n_u);
-                    zeros(obj.n_c, obj.n+obj.n_c+obj.n_u)];
         end
         
         % Check whether our System is a valid PH system
@@ -566,19 +535,16 @@ classdef PH_LinearSystem < PH_System
             idx_u0 = find(~any(round(obj.G-obj.P, 10)));
             % If yes, remove them
             u_dep = sort(idx_u0, 'descend');
+            ports = zeros(1, length(u_dep));
             for i=1:length(u_dep)
-                port = obj.getPortForIOPair(u_dep(i));
-                obj.deleteExternalPort(port);
+                ports(i) = obj.getPortForIOPair(u_dep(i));
             end
+            obj.deleteExternalPorts(ports);
 
             % G_c is now empty
             obj.B = zeros(obj.n, 0);
             % The number of constraints is reduced by a_c
             obj.n_c = obj.n_c - n_ac; 
-            
-            % Update simulation matrices
-            obj.A = [(obj.J - obj.R)*obj.Q, obj.G - obj.P];
-            obj.E = [eye(obj.n), zeros(obj.n, obj.n_u)];
             
             % Check whether there is a block of linearly dependent flows
             row_idx = ~any(obj.G'-obj.P');
@@ -630,6 +596,8 @@ classdef PH_LinearSystem < PH_System
 
                 % System order is reduced by the number of constraints
                 obj.n = obj.n - n_ac;
+                % Ensure correct size of B
+                obj.B = zeros(obj.n, 0);
 
                 % Map from new to old state variables
                 % TODO: fix this mapping... 
@@ -641,11 +609,14 @@ classdef PH_LinearSystem < PH_System
                 obj.Q = Q_11 - Q_12*(Q_22\Q_21);
                 obj.G = G_(1:obj.n, :);     
                 obj.P = P_(1:obj.n, :); 
-                
-                obj.A = [(obj.J - obj.R)*obj.Q, obj.G - obj.P];
-                obj.E = [eye(obj.n), zeros(obj.n, obj.n_u)];
             end
-
+            
+            % Ensure correct size of constraint matrices 
+            obj.C_u = zeros(0, obj.n_u);
+            obj.C_y = zeros(0, obj.n_u);
+            obj.C_e = zeros(0, obj.n);
+            obj.C_f = zeros(0, obj.n);
+            
             % Finally, check the validity of the system
             if ~obj.isValidPHSystem()
                 error('Whoops, something went wrong. Try decreasing arithmetic precision');
@@ -668,8 +639,6 @@ classdef PH_LinearSystem < PH_System
             obj.Q = T'\(obj.Q/T);
             obj.G = T*obj.G;
             obj.P = T*obj.P;
-            % Rebuild A (E is not considered here)
-            obj.A = [(obj.J - obj.R)*obj.Q, obj.G - obj.P];
             
             T = blkdiag(eye(obj.n/2), pinv(obj.J(obj.n/2+1:end, 1:obj.n/2)));
 
@@ -680,8 +649,6 @@ classdef PH_LinearSystem < PH_System
             obj.Q = T'\(obj.Q/T);
             obj.G = T*obj.G;
             obj.P = T*obj.P;
-            % Rebuild A once again
-            obj.A = [(obj.J - obj.R)*obj.Q, obj.G - obj.P]; 
         end
         
         function names = getInputNames(obj, IOPairs)
@@ -702,11 +669,11 @@ classdef PH_LinearSystem < PH_System
             if ~iscolumn(u) || length(u) ~= obj.n_u
                 error(['u must be a column vector of length ' num2str(obj.n_u)]);
             end            
-            dxdt = obj.A * [x; u];
+            dxdt = [(obj.J - obj.R)*obj.Q, obj.G - obj.P] * [x; u];
         end
         
         function dxdt = getStateDerivativeNoChecks(obj, x, u)           
-            dxdt = obj.A * [x; u];
+            dxdt = [(obj.J - obj.R)*obj.Q, obj.G - obj.P] * [x; u];
         end
         
         function y = getSystemOutput(obj, x, u)
@@ -798,42 +765,52 @@ classdef PH_LinearSystem < PH_System
             end
         end
         
-        function deleteExternalPort(obj, port)
-            if ~isscalar(port) || port > obj.n_ports 
-                error('port must be given as an < n_ports');
+        function deleteExternalPorts(obj, ports)
+            if ~isvector(ports) || any(ports > obj.n_ports) 
+                error('ports must be given as an array of scalars <= n_ports');
             end
-            if ~isa(obj.ports{port}, 'PH_Port_external')
-                error('trying to delete a storage port?');
+            
+            ports = sort(ports, 'descend');
+
+            IOPairs = zeros(1, length(ports));
+            for p = 1:length(ports)
+                IOPairs(p) = obj.ports{ports(p)}.IOPair;
+                obj.ports{ports(p)}.delete();
+                obj.ports(ports(p)) = [];
             end
-            IOPair = obj.ports{port}.IOPair;
-            obj.ports{port}.delete();
-            obj.ports(port) = [];
-            obj.n_ports = obj.n_ports - 1;
+            obj.n_ports = obj.n_ports - length(ports);
+            IOPairs = sort(IOPairs, 'descend');
             
             for p=1:obj.n_ports
-                port = obj.ports{p};
-                if(isa(port, 'PH_Port_external'))
-                    if(port.IOPair > IOPair)
-                        port.IOPair = port.IOPair-1;
+                current_port = obj.ports{p};
+                if(isa(current_port, 'PH_Port_external'))
+                    if(any(IOPairs < current_port.IOPair))
+                        current_port.IOPair = current_port.IOPair - sum(double(IOPairs < current_port.IOPair));
                     end
                 end
             end
             
-            obj.G(:, IOPair) = [];
-            obj.P(:, IOPair) = [];
-            obj.M(IOPair, :) = [];
-            obj.M(:, IOPair) = [];
-            obj.S(IOPair, :) = [];
-            obj.S(:, IOPair) = [];
-            obj.n_u = obj.n_u - 1; 
+            obj.G(:, IOPairs) = [];
+            obj.P(:, IOPairs) = [];
+            obj.M(IOPairs, :) = [];
+            obj.M(:, IOPairs) = [];
+            obj.S(IOPairs, :) = [];
+            obj.S(:, IOPairs) = [];
+            obj.n_u = obj.n_u - length(ports); 
             
             for n=1:obj.n_nodes
                 node = obj.nodes{n};
-                node.ports(node.ports > port) = node.ports(node.ports > port) - 1; 
+                for p = 1:length(ports)
+                    node.ports(node.ports > ports(p)) = node.ports(node.ports > ports(p)) - 1; 
+                    node.ports(node.ports == ports(p)) = [];
+                end
             end
             for e=1:obj.n_elements
                 element = obj.elements{e};
-                element.ports(element.ports > port) = element.ports(element.ports > port) - 1;
+                for p = 1:length(ports)
+                    element.ports(element.ports > ports(p)) = element.ports(element.ports > ports(p)) - 1;
+                    element.ports(element.ports == ports(p)) = [];
+                end
             end
         end
         
@@ -879,8 +856,8 @@ classdef PH_LinearSystem < PH_System
         
         % Returns a deep copy of a PH_LinearSystem
         function cp = copyElement(obj)
-            % PH_LinearSystem(n, E, J, Q, G, R, P, S, M, B)
-            cp = PH_LinearSystem(obj.n, obj.E(1:obj.n, 1:obj.n), obj.J, obj.Q, obj.G, ...
+            % PH_LinearSystem(n, J, Q, G, R, P, S, M, B)
+            cp = PH_LinearSystem(obj.n, obj.J, obj.Q, obj.G, ...
                                  obj.R, obj.P, obj.S, obj.M, obj.B);
             % copyData can also be called by subclasses
             obj.copyData(cp);
@@ -976,7 +953,7 @@ classdef PH_LinearSystem < PH_System
             V(idx, :) = [];
             V(:, ~any(V)) = [];
             G_v = null(V')';
-            C = round(rref(G_v*[Ce, Cf, Cu, Cy]), 14);
+            C = round(G_v*[Ce, Cf, Cu, Cy], 14);
             Ce = C(:, 1:obj.n);
             Cf = C(:, obj.n+1:2*obj.n);
             Cu = C(:, 2*obj.n+1:2*obj.n+obj.n_u);

@@ -11,8 +11,8 @@ classdef PH_FEM_Bernoulli < PH_FEM_Beam_element
         function obj = PH_FEM_Bernoulli(N, myu, E, I, L)
             % Get system matrices
             [n_, J_, Q_, G_] = pH_BernoulliBeam_PFEM_p(N, N, myu, E, I, L);
-            % LinearPHSystem(n, E, J, Q, G, R, P, S, M, C_u, C_y) 
-            obj = obj@PH_FEM_Beam_element(n_, [], J_, Q_, G_);
+            % LinearPHSystem(n, J, Q, G, R, P, S, M, C_u, C_y) 
+            obj = obj@PH_FEM_Beam_element(n_, J_, Q_, G_);
             
             obj.name = 'PH-FEM Euler-Bernoulli beam';
             

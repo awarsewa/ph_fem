@@ -1,7 +1,7 @@
 classdef PH_FEM_element < PH_LinearSystem 
     methods(Access = public)
-        function obj = PH_FEM_element(n, E, J, Q, varargin)
-            obj = obj@PH_LinearSystem(n, E, J, Q, varargin{:});
+        function obj = PH_FEM_element(n, J, Q, varargin)
+            obj = obj@PH_LinearSystem(n, J, Q, varargin{:});
         end
         
         function setPosition(obj, nodePositions)
@@ -119,8 +119,8 @@ classdef PH_FEM_element < PH_LinearSystem
             copyData@PH_LinearSystem(obj, cp);
         end
         function cp = copyElement(obj)
-               % PH_LinearSystem(n, E, J, Q, G, R, K, P, S, M, B)
-            cp = PH_FEM_element(obj.n, obj.E(1:obj.n, 1:obj.n), obj.J, obj.Q, obj.G, ...
+               % PH_LinearSystem(n, J, Q, G, R, K, P, S, M, B)
+            cp = PH_FEM_element(obj.n, obj.J, obj.Q, obj.G, ...
                                 obj.R, obj.P, obj.S, obj.M, obj.B);
             obj.copyData(cp);
         end

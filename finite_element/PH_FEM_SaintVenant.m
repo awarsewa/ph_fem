@@ -11,8 +11,8 @@ classdef PH_FEM_SaintVenant < PH_FEM_element
         function obj = PH_FEM_SaintVenant(N, I_p, G_t, I_t, L)
             % Get system matrices
             [n_, J_, Q_, G_] = pH_SaintVenant_PFEM_p(N, N, I_p, G_t, I_t, L);
-            % LinearPHSystem(n, E, J, Q, G, R, P, S, M, C_u, C_y) 
-            obj = obj@PH_FEM_element(n_, [], J_, Q_, G_);
+            % LinearPHSystem(n, J, Q, G, R, P, S, M, C_u, C_y) 
+            obj = obj@PH_FEM_element(n_, J_, Q_, G_);
             
             obj.name = 'Saint-Venant torsion element';
             

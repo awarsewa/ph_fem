@@ -1,7 +1,7 @@
 classdef (Abstract) PH_FEM_Beam_element < PH_FEM_element 
     methods(Access = public)
-        function obj = PH_FEM_Beam_element(n, E, J, Q, varargin)
-            obj = obj@PH_FEM_element(n, E, J, Q, varargin{:});
+        function obj = PH_FEM_Beam_element(n, J, Q, varargin)
+            obj = obj@PH_FEM_element(n, J, Q, varargin{:});
         end
         
         function setPosition(obj, nodePositions)

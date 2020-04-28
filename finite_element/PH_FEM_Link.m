@@ -24,8 +24,8 @@ classdef PH_FEM_Link < PH_FEM_element
                 [n_, J_, Q_, G_] = pH_Link_PFEM_q(N, N, myu, E, A, L);
             end
 
-            % LinearPHSystem(n, E, J, Q, G, R, P, S, M, C_u, C_y) 
-            obj = obj@PH_FEM_element(n_, [], J_, Q_, G_);
+            % LinearPHSystem(n, J, Q, G, R, P, S, M, C_u, C_y) 
+            obj = obj@PH_FEM_element(n_, J_, Q_, G_);
             
             obj.name = 'PH-FEM link element';
             obj.inputType = type;

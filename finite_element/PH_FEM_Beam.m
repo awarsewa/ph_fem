@@ -64,7 +64,7 @@ classdef PH_FEM_Beam < PH_FEM_Beam_element
                 bending_z.ports{3}.outputName = 'va_y';
                 bending_z.ports{4}.outputName = 'vb_y';
                 %}    
-                obj = obj@PH_FEM_Beam_element(0, [], zeros(0), zeros(0), zeros(0));
+                obj = obj@PH_FEM_Beam_element(0, zeros(0), zeros(0), zeros(0));
                 obj.add(bending_y);
                 obj.add(bending_z);
                 obj.add(torsion);

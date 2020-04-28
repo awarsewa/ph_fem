@@ -15,8 +15,8 @@ classdef PH_FEM_Timoshenko < PH_FEM_Beam_element
             % Get system matrices
             % pH_TimoshenkoBeam_PFEM_p(N_p, N_q, rho, E, G, A, I, kappa, L) 
             [n_, J_, Q_, G_] = pH_TimoshenkoBeam_PFEM_p(N, N, rho, E, G, A, I, kappa, L);
-            % LinearPHSystem(n, E, J, Q, G, R, K, P, S, M, C_u, C_y) 
-            obj = obj@PH_FEM_Beam_element(n_, [], J_, Q_, G_);
+            % LinearPHSystem(n, J, Q, G, R, K, P, S, M, C_u, C_y) 
+            obj = obj@PH_FEM_Beam_element(n_, J_, Q_, G_);
             
             obj.name = 'Timoshenko beam element';
             
