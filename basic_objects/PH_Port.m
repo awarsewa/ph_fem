@@ -8,8 +8,8 @@ classdef PH_Port < matlab.mixin.Copyable
     
     methods (Access = public)
         function obj = PH_Port(scope, domain, type, nodes)
-            if ~ischar(scope) || ~(strcmp(scope, 'storage') || strcmp(scope, 'external'))
-                error('domain must be either ''storage'' or ''external''.');  
+            if ~ischar(scope) || ~(strcmp(scope, 'storage') || strcmp(scope, 'external') || strcmp(scope, 'boundary'))
+                error('domain must be either ''storage'', ''external'' or ''boundary''.');  
             end
             
             if ~ischar(domain) || ~(strcmp(domain, 'mechanical') || strcmp(domain, 'electrical') || strcmp(domain, 'hydraulical'))

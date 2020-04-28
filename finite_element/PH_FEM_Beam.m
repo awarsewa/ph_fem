@@ -50,20 +50,7 @@ classdef PH_FEM_Beam < PH_FEM_Beam_element
                         bending_z.ports{p}.outputName = [bending_z.ports{p}.outputName(1:end-1) 'y'];
                     end
                 end
-                %{
-                bending_z.ports{1}.orientation = [0; 0; 1];
-                bending_z.ports{2}.orientation = [0; 0; 1]; 
-                bending_z.ports{3}.orientation = [0; -1; 0];
-                bending_z.ports{4}.orientation = [0; -1; 0];
-                bending_z.ports{1}.inputName = 'Ma_z';
-                bending_z.ports{2}.inputName = 'Mb_z';
-                bending_z.ports{3}.inputName = 'Fa_y';
-                bending_z.ports{4}.inputName = 'Fb_y';
-                bending_z.ports{1}.outputName = 'wa_z';
-                bending_z.ports{2}.outputName = 'wb_z';
-                bending_z.ports{3}.outputName = 'va_y';
-                bending_z.ports{4}.outputName = 'vb_y';
-                %}    
+
                 obj = obj@PH_FEM_Beam_element(0, zeros(0), zeros(0), zeros(0));
                 obj.add(bending_y);
                 obj.add(bending_z);

@@ -2,7 +2,7 @@ function [n, J, Q, G] = pH_BernoulliBeam_PFEM_p(N_p, N_q, myu, E, I, L)
     % Interpolation interval
     interval = [0, L];
     
-   nodes_p = linspace(0, L, N_p);
+    nodes_p = linspace(0, L, N_p);
     nodes_q = linspace(0, L, N_q);
     
     % Construct polynomial bases (Lagrange polynomials)
@@ -64,11 +64,10 @@ function [n, J, Q, G] = pH_BernoulliBeam_PFEM_p(N_p, N_q, myu, E, I, L)
     % Input\matrix + feedthrough matrix
     G = [Bp; zeros(N_p, size(Bp, 2))];
     
-    decimalPrecision = 14;  
-    J = round(J, decimalPrecision);
-    Q = round(Q, decimalPrecision);
-    G = round(G, decimalPrecision);
-      
+    % Enforce symmetry/skew-symmetry
+    J = J - (J + J')/2;
+    Q = Q - (Q - Q')/2; 
+
     % System order
 	n = N_p+N_q;
 end

@@ -226,8 +226,12 @@ classdef PH_LinearSystem < PH_System
             for p = 1:system.n_ports
                 obj.ports{end+1} = copy(system.ports{p});
                 obj.ports{end}.nodes = obj.ports{end}.nodes + obj.n_nodes;
-                if strcmp(obj.ports{end}.scope, 'external')
+                if isa(obj.ports{end}, 'PH_Port_external') 
                     obj.ports{end}.IOPair = obj.ports{end}.IOPair + obj.n_u;
+                end
+                if isa(obj.ports{end}, 'PH_Port_boundary')
+                    obj.ports{end}.IOPair = obj.ports{end}.IOPair + obj.n_u;
+                    obj.ports{end}.element = obj.ports{end}.element + obj.n_elements;
                 end
             end
             
@@ -277,8 +281,12 @@ classdef PH_LinearSystem < PH_System
             for p = 1:system.n_ports
                 obj.ports{end+1} = copy(system.ports{p});
                 obj.ports{end}.node = obj.ports{end}.node + obj.n_nodes; 
-                if strcmp(obj.ports{end}.scope, 'external')
+                if isa(obj.ports{end}, 'PH_Port_external') 
                     obj.ports{end}.IOPair = obj.ports{end}.IOPair + obj.n_u;
+                end
+                if isa(obj.ports{end}, 'PH_Port_boundary')
+                    obj.ports{end}.IOPair = obj.ports{end}.IOPair + obj.n_u;
+                    obj.ports{end}.element = obj.ports{end}.element + obj.n_elements;
                 end
             end
             
@@ -410,11 +418,8 @@ classdef PH_LinearSystem < PH_System
             
             % remove dependent inputs
             u_dep = sort(u_dep, 'descend');
-            ports = zeros(1, length(u_dep));
-            for i=1:length(u_dep)
-                ports(i) = obj.getPortForIOPair(u_dep(i));
-            end
-            obj.deleteExternalPorts(ports);
+            ports = obj.getPortsForIOPairs(u_dep);
+            obj.deletePorts(ports);
             u_new = 1:length(u_new);
             
             % Assign new system matrices
@@ -431,11 +436,8 @@ classdef PH_LinearSystem < PH_System
           
             u_dep = u_new(idx_u0);
             u_dep = sort(u_dep, 'descend');
-            ports = zeros(1, length(u_dep));
-            for i=1:length(u_dep)
-                ports(i) = obj.getPortForIOPair(u_dep(i));
-            end
-            obj.deleteExternalPorts(ports);
+            ports = obj.getPortsForIOPairs(u_dep);
+            obj.deletePorts(ports);
             
             % System check... 
             if ~obj.isValidPHSystem()
@@ -535,11 +537,8 @@ classdef PH_LinearSystem < PH_System
             idx_u0 = find(~any(round(obj.G-obj.P, 10)));
             % If yes, remove them
             u_dep = sort(idx_u0, 'descend');
-            ports = zeros(1, length(u_dep));
-            for i=1:length(u_dep)
-                ports(i) = obj.getPortForIOPair(u_dep(i));
-            end
-            obj.deleteExternalPorts(ports);
+            ports = obj.getPortsForIOPairs(u_dep);
+            obj.deletePorts(ports);
 
             % G_c is now empty
             obj.B = zeros(obj.n, 0);
@@ -623,6 +622,15 @@ classdef PH_LinearSystem < PH_System
             end
         end 
         
+        function roundSystemMatrices(obj, decimalPlaces)
+            obj.J = round(obj.J, decimalPlaces);
+            obj.R = round(obj.R, decimalPlaces);
+            obj.Q = round(obj.Q, decimalPlaces);
+            obj.G = round(obj.G, decimalPlaces);
+            obj.P = round(obj.P, decimalPlaces);
+            obj.M = round(obj.M, decimalPlaces);
+            obj.S = round(obj.S, decimalPlaces);
+        end
         
         function transformToGlobalDOFs(obj)
             row_idx = any(obj.G'-obj.P');
@@ -653,9 +661,9 @@ classdef PH_LinearSystem < PH_System
         
         function names = getInputNames(obj, IOPairs)
             names = cell(1, length(IOPairs));
-            for i=1:length(IOPairs)
-                p = obj.getPortForIOPair(IOPairs(i));
-                names{i} = obj.ports{p}.inputName;
+            ports = obj.getPortsForIOPairs(IOPairs);
+            for p = 1:length(ports)
+                names{p} = obj.ports{ports(p)}.inputName;
             end
         end
         
@@ -703,7 +711,7 @@ classdef PH_LinearSystem < PH_System
             portNumbers = zeros(obj.n_ports, 1); 
             for p = 1:obj.n_ports
                 port = obj.ports{p};
-                if strcmp(port.scope, 'external')
+                if isa(port, 'PH_Port_external')
                     nPortsFound = nPortsFound + 1;
                     portNumbers(nPortsFound) = p;
                 end
@@ -755,17 +763,20 @@ classdef PH_LinearSystem < PH_System
             portNumbers = portNumbers(1:nPortsFound);
         end
         
-        function port = getPortForIOPair(obj, pair)
-            port = 0;
+        function ports = getPortsForIOPairs(obj, pairs)
+            ports = zeros(1, length(pairs));
             for p = 1:obj.n_ports
-                if strcmp(obj.ports{p}.scope, 'external') && obj.ports{p}.IOPair == pair
-                    port = p;
-                    break;
+                if (isa(obj.ports{p}, 'PH_Port_external') || isa(obj.ports{p}, 'PH_Port_boundary'))
+                    for i = 1:length(pairs)
+                        if obj.ports{p}.IOPair == pairs(i)
+                            ports(i) = p;
+                        end
+                    end
                 end
             end
         end
         
-        function deleteExternalPorts(obj, ports)
+        function deletePorts(obj, ports)
             if ~isvector(ports) || any(ports > obj.n_ports) 
                 error('ports must be given as an array of scalars <= n_ports');
             end
@@ -774,18 +785,22 @@ classdef PH_LinearSystem < PH_System
 
             IOPairs = zeros(1, length(ports));
             for p = 1:length(ports)
-                IOPairs(p) = obj.ports{ports(p)}.IOPair;
-                obj.ports{ports(p)}.delete();
+                port = obj.ports{ports(p)};
+                if isa(port, 'PH_Port_external') || isa(port, 'PH_Port_boundary')
+                    IOPairs(p) = port.IOPair;
+                end
+                port.delete();
                 obj.ports(ports(p)) = [];
             end
             obj.n_ports = obj.n_ports - length(ports);
             IOPairs = sort(IOPairs, 'descend');
+            IOPairs(IOPairs == 0) = [];
             
             for p=1:obj.n_ports
-                current_port = obj.ports{p};
-                if(isa(current_port, 'PH_Port_external'))
-                    if(any(IOPairs < current_port.IOPair))
-                        current_port.IOPair = current_port.IOPair - sum(double(IOPairs < current_port.IOPair));
+                port = obj.ports{p};
+                if isa(port, 'PH_Port_external') || isa(port, 'PH_Port_boundary')
+                    if(any(IOPairs < port.IOPair))
+                        port.IOPair = port.IOPair - sum(double(IOPairs < port.IOPair));
                     end
                 end
             end
@@ -801,15 +816,15 @@ classdef PH_LinearSystem < PH_System
             for n=1:obj.n_nodes
                 node = obj.nodes{n};
                 for p = 1:length(ports)
-                    node.ports(node.ports > ports(p)) = node.ports(node.ports > ports(p)) - 1; 
                     node.ports(node.ports == ports(p)) = [];
+                    node.ports(node.ports > ports(p)) = node.ports(node.ports > ports(p)) - 1; 
                 end
             end
             for e=1:obj.n_elements
                 element = obj.elements{e};
                 for p = 1:length(ports)
-                    element.ports(element.ports > ports(p)) = element.ports(element.ports > ports(p)) - 1;
                     element.ports(element.ports == ports(p)) = [];
+                    element.ports(element.ports > ports(p)) = element.ports(element.ports > ports(p)) - 1;
                 end
             end
         end
@@ -878,27 +893,36 @@ classdef PH_LinearSystem < PH_System
             % Loop through the system's nodes
             for n = 1:obj.n_nodes
                 node = obj.nodes{n};
-                if ~isa(node, 'PH_MechanicalNode') || node.internal
+                if ~isa(node, 'PH_MechanicalNode') 
                     continue;
                 end
                 
                 % Get mechanical ports at current node
                 ports_mech = obj.getMechanicalPorts(n);
+                duplicates = [];
                 % Loop through ports at current node
                 for p = 1:length(ports_mech)
-                    isSystemPort = 0; 
-                    for e = 1:obj.n_elements 
-                        if any(obj.elements{e}.ports == ports_mech(p))
-                            isSystemPort = 1;
-                        end
-                    end
-                    if ~isSystemPort
-                        continue
-                    end
                     % Get next port and its orientation at current node
                     port = obj.ports{ports_mech(p)};
                     orientation = port.orientation(:,find(port.nodes==n,1));
                     
+                    % External ports are not constrained as long as there
+                    % are no duplicates (one constraint per duplicate)
+                    if isa(port, 'PH_Port_external')
+                        duplicate = 0;
+                        for pp = 1:length(ports_mech)
+                            if pp ~= p  && isa(obj.ports{ports_mech(pp)}, 'PH_Port_external') ...
+                                    && ~any(obj.ports{ports_mech(pp)}.orientation ~= orientation)...
+                                    && ~any(duplicates == ports_mech(pp))
+                                duplicate = 1;
+                                duplicates(end+1) = ports_mech(p);
+                            end
+                        end
+                        if ~duplicate
+                            continue
+                        end
+                    end
+        
                     % Add one velocity constraint for each port
                     nConstraints = nConstraints + 1;
                     % Define how port is related to global DOFs
@@ -908,7 +932,7 @@ classdef PH_LinearSystem < PH_System
                         V(nConstraints, n*6-2:n*6) = orientation .* double(~node.lockedDOFs(4:6))';
                     end
                     % Add entry in respective constraint matrix
-                    if strcmp(port.scope, 'storage')
+                    if isa(port, 'PH_Port_storage')
                         % For storage ports, add flow/effort constraints
                         if strcmp(port.type, 'force') || strcmp(port.type, 'torque')
                             % effort is force/torque -> flow is velocity
@@ -917,8 +941,8 @@ classdef PH_LinearSystem < PH_System
                             % effort is velocity
                             Ce(nConstraints, port.effort(find(port.nodes == n, 1))) = 1; 
                         end
-                    elseif strcmp(port.scope, 'external')
-                        % For external port, add input/output constraints
+                    elseif isa(port, 'PH_Port_external') || isa(port, 'PH_Port_boundary')
+                        % For external/boundary ports, add input/output constraints
                         if strcmp(port.type, 'force') || strcmp(port.type, 'torque')
                             % input is force/torque -> output is velocity
                             Cy(nConstraints, port.IOPair) = 1;
@@ -953,7 +977,8 @@ classdef PH_LinearSystem < PH_System
             V(idx, :) = [];
             V(:, ~any(V)) = [];
             G_v = null(V')';
-            C = round(G_v*[Ce, Cf, Cu, Cy], 14);
+            %C = round(G_v*[Ce, Cf, Cu, Cy], 14);
+            C = G_v*[Ce, Cf, Cu, Cy];
             Ce = C(:, 1:obj.n);
             Cf = C(:, obj.n+1:2*obj.n);
             Cu = C(:, 2*obj.n+1:2*obj.n+obj.n_u);
@@ -988,12 +1013,19 @@ classdef PH_LinearSystem < PH_System
                     % Do not continue if the current DOF is locked or
                     % when no ports are connected to the current node
                     if  ~isempty(ports_fv) %&& ~node.lockedDOFs(d)
-                        % All forces sum up to zero -> one constraint
+                        % If the only port connected at the node is an
+                        % external one, no constraint is added
+                        if length(ports_fv) == 1 && isa(obj.ports{ports_fv(1)}, 'PH_Port_external')
+                            continue
+                        end
+                        
+                        % All forces sum up to zero -> one constraint                      
                         nConstraints = nConstraints+1;
                         for p=1:length(ports_fv)
                             port = obj.ports{ports_fv(p)};
                             orientation = port.orientation(:,find(port.nodes==n,1));
-                            if strcmp(port.scope, 'storage')
+                            
+                            if isa(port, 'PH_Port_storage')
                                 % For storage ports, add flow/effort constraints
                                 if strcmp(port.type, 'force')
                                     % effort is force 
@@ -1002,8 +1034,8 @@ classdef PH_LinearSystem < PH_System
                                     % flow is force
                                     Cf(nConstraints, port.flow(find(port.nodes == n, 1))) = orientation(d); 
                                 end
-                            elseif strcmp(port.scope, 'external')
-                                % For external port, add input/output constraints
+                            elseif isa(port, 'PH_Port_external') || isa(port, 'PH_Port_boundary')
+                                % For external/boundary ports, add input/output constraints
                                 if strcmp(port.type, 'force')
                                     % input is force
                                     Cu(nConstraints, port.IOPair) = orientation(d);
@@ -1024,12 +1056,17 @@ classdef PH_LinearSystem < PH_System
                     % Do not continue if the current DOF is locked or
                     % when no ports are connected to the current node
                     if ~isempty(ports_tr) %&& ~node.lockedDOFs(d+3) 
+                        % If the only port connected at the node is an
+                        % external one, no constraint is added
+                        if length(ports_tr) == 1 && isa(obj.ports{ports_tr(1)}, 'PH_Port_external')
+                            continue
+                        end
                         % All torques sum up to zero
                         nConstraints = nConstraints+1;
                         for p=1:length(ports_tr)
                             port = obj.ports{ports_tr(p)};
                             orientation = port.orientation(:,find(port.nodes==n,1));
-                            if strcmp(port.scope, 'storage')
+                            if isa(port, 'PH_Port_storage')
                                 % For storage ports, add flow/effort constraints
                                 if strcmp(port.type, 'torque')
                                     % effort is torque 
@@ -1038,8 +1075,8 @@ classdef PH_LinearSystem < PH_System
                                     % flow is torque
                                     Cf(nConstraints, port.flow(find(port.nodes == n, 1))) = orientation(d); 
                                 end
-                            elseif strcmp(port.scope, 'external')
-                                % For external port, add input/output constraints
+                            elseif isa(port, 'PH_Port_external') || isa(port, 'PH_Port_boundary')
+                                % For externa/boundary ports, add input/output constraints
                                 if strcmp(port.type, 'torque')
                                     % input is torque
                                     Cu(nConstraints, port.IOPair) = orientation(d);

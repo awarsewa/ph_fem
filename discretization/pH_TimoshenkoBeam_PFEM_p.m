@@ -81,10 +81,9 @@ function [n, J, Q, G] = pH_TimoshenkoBeam_PFEM_p(N_p, N_q, rho, E, G, A, I, kapp
     % Input matrix + feedthrough matrix
     G = [Bp; zeros(2*N_q, size(Bp, 2))];
     
-    decimalPrecision = 14;  
-    J = round(J, decimalPrecision);
-    Q = round(Q, decimalPrecision);
-    G = round(G, decimalPrecision);
+    % Enforce symmetry/skew-symmetry
+    J = J - (J + J')/2;
+    Q = Q - (Q - Q')/2; 
       
     % System order
 	n = 2*(N_p+N_q);

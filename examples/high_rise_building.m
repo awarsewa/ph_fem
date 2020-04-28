@@ -96,6 +96,8 @@ mesh.assembleDAESystem();
 mesh.eliminateAlgebraicConstraints();
 % Transform coordinate space to global DOFs
 mesh.transformToGlobalDOFs();
+% Round to 14 decimal places
+mesh.roundSystemMatrices(14);
 
 % Get mass and stiffness matrix
 M_ph = mesh.Q(1:mesh.n/2, 1:mesh.n/2)^-1;
@@ -183,7 +185,10 @@ x0_fe = -A_fe\E_wind_fe*0.2e5;
 time = 1:0.01:5; 
 odefun_ph = @(t, x) A*x;
 odefun_fe = @(t, x) A_fe*x;
-[~, y_ph] = ode15s(odefun_ph, time, x0_ph);
+jacobian_ph = @(t, x) A;
+
+y_ph = gls(odefun_ph, jacobian_ph, time, x0_ph, 2);
+[~, y_ph_matlab] = ode15s(odefun_ph, time, x0_ph);
 %[~, y_fe] = ode15s(odefun_fe, time, x0_fe);
 
 %% Plots
@@ -198,7 +203,6 @@ figure();
 plot(time, 1e3.*x_ph(:, end));
 xlabel('time in s');
 ylabel('x-displacement in mm');
-title('Response to an initial displacement');
 
 figure();
 H = zeros(length(time), 1);
@@ -206,6 +210,3 @@ for k=1:length(time)
     H(k) = 0.5*y_ph(k,:)*mesh.Q*y_ph(k,:)';
 end
 plot(time, 1e-3.*H);
-xlabel('time in s');
-ylabel('energy in kJ');
-title('System Hamiltonian');
