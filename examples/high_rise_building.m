@@ -187,8 +187,7 @@ odefun_ph = @(t, x) A*x;
 odefun_fe = @(t, x) A_fe*x;
 jacobian_ph = @(t, x) A;
 
-y_ph = gls(odefun_ph, jacobian_ph, time, x0_ph, 2);
-[~, y_ph_matlab] = ode15s(odefun_ph, time, x0_ph);
+[~, y_ph] = ode15s(odefun_ph, time, x0_ph);
 %[~, y_fe] = ode15s(odefun_fe, time, x0_fe);
 
 %% Plots
