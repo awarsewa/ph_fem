@@ -64,10 +64,6 @@ function [n, J, Q, G] = pH_BernoulliBeam_PFEM_p(N_p, N_q, myu, E, I, L)
     % Input\matrix + feedthrough matrix
     G = [Bp; zeros(N_p, size(Bp, 2))];
     
-    % Enforce symmetry/skew-symmetry
-    J = J - (J + J')/2;
-    Q = Q - (Q - Q')/2; 
-
     % System order
 	n = N_p+N_q;
 end

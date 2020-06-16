@@ -1,6 +1,6 @@
 classdef PH_FEM_mesh < PH_LinearSystem
     properties(SetAccess = protected, GetAccess = public) 
-        nodeTable       % array containing the objects node locations
+        nodeTable
         elementTable    % array of elements and their connection to nodes
         elementTypes    % cell array containing the different element types
         attribs         % cell array of element attributes
@@ -48,7 +48,9 @@ classdef PH_FEM_mesh < PH_LinearSystem
             for i=1:n_e
                 current = copy(elements{elementArray(i, end)});
                 %current.setPosition(nodeArray(elementArray(i, 1:current.n_nodes), :));
-                current.setPosition(nodeArray(elementArray(i, 1:2), :));
+                nodes = elementArray(i,1:end-1);
+                nodes(nodes == 0) = [];
+                current.setPosition(nodeArray(nodes, :));
                 current.setAttributes(attributes(i, :));
                 
                 for k=1:length(current.ports)
@@ -79,167 +81,45 @@ classdef PH_FEM_mesh < PH_LinearSystem
         % Modified add function that removes duplicate nodes
         function add(obj, system)
             obj.add@PH_LinearSystem(system);
-            if isa(system, 'PH_FEM_mesh')
-                system_nodes = system.nodeTable;
-                for n = 1:size(obj.nodeTable, 1)
-                    node = obj.nodeTable(n,:);
-                    system_nodes(sum(system_nodes == node, 2)' == 3, :) = [];
-                end
-                obj.nodeTable = [obj.nodeTable; system_nodes];
-                
+            if isa(system, 'PH_FEM_mesh')  
+                obj.nodeTable = [obj.nodeTable; system.nodeTable];
                 obj.elementTable = [obj.elementTable; system.elementTable];
                 obj.elementTypes = {obj.elementTypes; system.elementTypes};
                 obj.attribs = {obj.attribs; system.attribs};
             end
-            
-            % Look for identical nodes and delete duplicates
-            duplicateNodes = zeros(0,2);
-            for n = 1:obj.n_nodes
-                current = obj.nodes{n};
-                if ~isa(current, 'PH_MechanicalNode') || any(any(duplicateNodes == n)) || current.internal
-                    continue;
-                else
-                    for i=1:obj.n_nodes
-                        if ~(i == n) && isa(obj.nodes{i}, 'PH_MechanicalNode')
-                            if ~any(obj.nodes{i}.location ~= current.location)
-                                duplicateNodes(end+1, 1) = n;
-                                duplicateNodes(end, 2) = i;
-                                break;
-                            end
-                        end
-                    end
-                end
-            end
-            
-            if ~isempty(duplicateNodes)
-                for n = 1:size(duplicateNodes, 1)
-                    current = obj.nodes{duplicateNodes(n, 1)};
-                    current.ports = [current.ports obj.nodes{duplicateNodes(n, 2)}.ports];
-                    current.elements = [current.elements obj.nodes{duplicateNodes(n, 2)}.elements];
-                    current.lockedDOFs = double(current.lockedDOFs | obj.nodes{duplicateNodes(n, 2)}.lockedDOFs);
-                    for p = 1:length(current.ports)
-                        for pn = 1:length(obj.ports{current.ports(p)}.nodes)
-                            if(obj.ports{current.ports(p)}.nodes(pn) == duplicateNodes(n, 2))
-                                obj.ports{current.ports(p)}.nodes(pn) = duplicateNodes(n, 1);
-                            end
-                        end
-                    end
-                    for e = 1:length(current.elements)
-                        for en = 1:length(obj.elements{current.elements(e)}.nodes)
-                            if(obj.elements{current.elements(e)}.nodes(en) == duplicateNodes(n, 2))
-                                obj.elements{current.elements(e)}.nodes(en) = duplicateNodes(n, 1);
-                            end
-                        end
-                    end
-                    obj.nodes{duplicateNodes(n, 2)}.delete();
-                end
-                
-                
-                for n = 1:size(duplicateNodes, 1)            
-                    for p = 1:obj.n_ports
-                        port = obj.ports{p};
-                        for pn = 1:length(port.nodes)
-                            if port.nodes(pn) > duplicateNodes(n, 2)
-                                port.nodes(pn) = port.nodes(pn) -1; 
-                            end
-                        end
-                    end
-                    for e = 1:obj.n_elements
-                        element = obj.elements{e};
-                        for en = 1:length(element.nodes)
-                            if element.nodes(en) > duplicateNodes(n, 2)
-                                element.nodes(en) = element.nodes(en) -1; 
-                            end
-                        end
-                    end
-                    obj.nodes(duplicateNodes(n, 2)) = [];
-                    obj.n_nodes = length(obj.nodes);
-                    for i=n+1:size(duplicateNodes,1)
-                        if duplicateNodes(i, 2) > duplicateNodes(n, 2) 
-                            duplicateNodes(i, 2) = duplicateNodes(i, 2) -1;
-                        end
-                    end
-                end
-
-                
-            end
         end 
                 
-        % Check whether a selected DOF of a given node is fixed?
-        function ret = isFixed(obj, node, dof)
-            n = obj.getNodeAtLocation(obj.nodeTable(node, :));
-            ret = obj.nodes{n}.lockedDOFS(dof);
-        end
-        
-        function node = getNodeAtLocation(obj, location)
-            node = 0;
-            for n=1:obj.n_nodes
-                if isa(obj.nodes{n}, 'PH_MechanicalNode') && ~any(obj.nodes{n}.location ~= location)
-                    node = n;
-                    break;
-                end
-            end
-        end
-        
-        function fixNodeDOFs(obj, location, dofs)
-            if ~ismatrix(location) || size(location, 1) ~= 1 || size(location, 2) ~= 3
-                error('location must be supplied as a 1x3 vector');
-            end
-            if size(dofs, 1) ~= 1 || size(dofs, 2) ~= 6
-                error('dofs must be an 1x6 vector'); 
-            end
-            
-            node = obj.getNodeAtLocation(location);
-            obj.nodes{node}.lockedDOFs = dofs;
-        end 
-        
-        function addExternalInputsAtNodes(obj)
-            % Original number of inputs
-            n_u0 = obj.n_u;
-            for n=1:obj.n_nodes
-                node = obj.nodes{n};
-                if ~isa(node, 'PH_MechanicalNode') %|| node.internal
-                    continue
-                end
-                
-                % Get all ports at this node
-                dir_str = 'xyz';
-                for d = 1:3
-                    dir = zeros(1, 3);
-                    dir(d) = 1;
-                    % ports are connected at this port in this direction?
-                    ports_f = obj.getMechanicalPorts(n, {'force'}, dir);
-                    if ~isempty(ports_f)
-                        obj.addExternalPort('mechanical', 'force', n, obj.n_u+1, ...
-                                            ['n' num2str(n) '_F' dir_str(d)], ['n' num2str(n) '_v' dir_str(d)], dir');
-                        obj.n_u = obj.n_u +1;
-                    end
-                end
-                for d = 1:3
-                    dir = zeros(1, 3);
-                    dir(d) = -1;
-
-                    ports_t = obj.getMechanicalPorts(n, {'torque'}, dir);
-                    if ~isempty(ports_t)
-                        obj.addExternalPort('mechanical', 'torque', n, obj.n_u+1, ...
-                                            ['n' num2str(n) '_M' dir_str(d)], ['n' num2str(n) '_w' dir_str(d)], dir');
-                        obj.n_u = obj.n_u +1;
-                    end
-                end
-            end
-            
-            obj.G = [obj.G, zeros(obj.n, obj.n_u - n_u0)];
-            obj.P = [obj.P, zeros(obj.n, obj.n_u - n_u0)];
-            obj.M = blkdiag(obj.M, zeros(obj.n_u - n_u0));
-            obj.S = blkdiag(obj.S, zeros(obj.n_u - n_u0));
-            obj.C_u = [obj.C_u, zeros(size(obj.C_u, 1), obj.n_u - n_u0)];
-            obj.C_y = [obj.C_y, zeros(size(obj.C_y, 1), obj.n_u - n_u0)];
-        end
     end
     
     methods(Access = protected)        
-        function cp = copyElement(obj)
+        function copyData(obj, cp)
+            for e = 1:cp.n_elements
+                cp.elements{e}.delete();
+            end
+            for p = 1:cp.n_ports
+                cp.ports{p}.delete(); 
+            end
+            for n = 1:cp.n_nodes
+                cp.nodes{n}.delete();
+            end
+            copyData@PH_LinearSystem(obj, cp);
+            cp.J = obj.J;
+            cp.R = obj.R;
+            cp.Q = obj.Q; 
+            cp.G = obj.G;
+            cp.P = obj.P;
+            cp.S = obj.S;
+            cp.M = obj.M;
+            cp.x_q = obj.x_q;
+            cp.x_p = obj.x_p;
+            cp.n = obj.n;
+            cp.n_u = obj.n_u;
+            cp.C = obj.C;
+            cp.B = obj.B;
+        end
+        function cp = copyElement(obj)           
             cp = PH_FEM_mesh(obj.nodeTable, obj.elementTable, obj.elementTypes, obj.attribs);
+            obj.copyData(cp);
         end
     end
 end

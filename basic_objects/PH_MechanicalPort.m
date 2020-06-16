@@ -1,4 +1,6 @@
 classdef PH_MechanicalPort < PH_Port
+    % Mechanical ports have an additional orientation in x/y/z coordinates
+    % at each node
     properties (Access = public) 
         orientation
     end

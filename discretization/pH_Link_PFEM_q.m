@@ -66,9 +66,5 @@ function [n, J, Q, G] = pH_Link_PFEM_q(N_p, N_q, myu, E, A, L)
     % Input matrix + feedthrough matrix
     G = [zeros(N_q, 2); Bq];
     
-    % Enforce symmetry/skew-symmetry
-    J = J - (J + J')/2;
-    Q = Q - (Q - Q')/2; 
-    
     n = N_p + N_q;
 end

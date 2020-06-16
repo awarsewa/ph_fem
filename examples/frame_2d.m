@@ -1,4 +1,4 @@
-close all
+%close all
 
 E = 210e9;                          % Young's modulus (for steel)
 rho = 7850;                         % Density
@@ -49,48 +49,57 @@ diagonal    = PH_FEM_Link(2, mu_d, E, A_d, L_d);
 mesh = PH_FEM_mesh(nodes, elems, {column, bar, diagonal, column_rod}, attribs);
 mesh.fixNodeDOFs([0 0 0], [1 0 1 0 1 0]);
 mesh.fixNodeDOFs([4.75 0 0], [1 0 1 0 1 0]);
-
 % Add external forces acting on global DOFs
 mesh.addExternalInputsAtNodes();
 % Generate constraints
 mesh.generateConstraints();
 % Assemble constraint matrix B
 mesh.assembleDAESystem();
-% Eliminate algebraic constraints and linearly dependent states
-mesh.eliminateAlgebraicConstraints();
+% Eliminate algebraic constraints 
+mesh.eliminateAlgebraicConstraints(1);
+% Eliminate linearly dependent states/efforts
+mesh.eliminateLinearDependencies(1);
 % Transform coordinate space to global DOFs
 mesh.transformToGlobalDOFs();
 
 %% Simulation
-t = 0:0.01:3;
+time = 0:0.01:3;
 
 B = zeros(mesh.n_u, 1);
 B(16) = 1;
 % Setup state derivative function for the pH-system
 A_ph = [(mesh.J-mesh.R)*mesh.Q, mesh.G - mesh.P];
 ph_odefun = @(t, x) A_ph*[x; B*(50000/3*t)];
+ph_jacobian = @(t, x) (mesh.J-mesh.R)*mesh.Q;
 
 % Simulate the excited system
-[time, x_ph] = ode45(ph_odefun, t, zeros(size(A_ph,1),1)); 
+x_ph = linear_gls(ph_odefun, ph_jacobian, time, zeros(size(A_ph,1),1), 2); 
 
 %% Output
-y_ph = zeros(length(t), mesh.n_u);
-for k=1:length(t)
+y_ph = zeros(length(time), mesh.n_u);
+h_ph = zeros(length(time), 1); 
+for k=1:length(time)
     % Get global nodal velocities
-    y_ph(k, :) = mesh.getSystemOutput(x_ph(k,:)', B*(50000/3*t(k)));
+    y_ph(k, :) = mesh.getSystemOutput(x_ph(k,:)', B*(50000/3*time(k)));
+    h_ph(k) = x_ph(k,:)*mesh.Q*x_ph(k,:)';
 end
+figure;
+plot(time, h_ph);
+
 % Integrate to get nodal displacements
 y_ph = cumtrapz(y_ph).*0.01;
 figure;
 % Plot upper 2 nodes only
-plot(time, y_ph(:, 13:18));
+plot(time, y_ph(:, [13 14 16 17]));
 xlabel('time in s');
 ylabel('displacement'); 
 title('displacements by output integration');
+legend('n7_x', 'n7_z', 'n8_x', 'n8_z');
 
 % Displacements can also be obtained from the state vector 
 figure;
-plot(time, x_ph(:, 13+mesh.n/2:18+mesh.n/2));
+plot(time, x_ph(:, [13 14 16 17]+mesh.n/2));
 xlabel('time in s');
 ylabel('displacement'); 
 title('displacements from state vector');
+legend('n7_x', 'n7_z', 'n8_x', 'n8_z');

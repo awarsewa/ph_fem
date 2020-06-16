@@ -15,8 +15,7 @@ classdef PH_FEM_element < PH_LinearSystem
             nDir = nodePositions(2,:) - nodePositions(1,:);
             nDir = nDir./norm(nDir);
             
-            Tr = round(vrrotvec2mat(vrrotvec([1 0 0],nDir)), 12);
-            
+            Tr = round(vrrotvec2mat(vrrotvec(dir,nDir)), 12);
             
             % new direction is in some plane
             for p=1:obj.n_ports
@@ -30,8 +29,6 @@ classdef PH_FEM_element < PH_LinearSystem
             pos_z = linspace(nodePositions(1,3), nodePositions(2,3), obj.n_nodes);
             for n=1:obj.n_nodes
                 obj.nodes{n}.location = [pos_x(n), pos_y(n), pos_z(n)];
-                obj.nodes{n}.lockedDOFs = [round(Tr*obj.nodes{n}.lockedDOFs(1:3)', 10)' ...
-                                           round(Tr*obj.nodes{n}.lockedDOFs(4:6)', 10)'];
             end
         end
         
@@ -61,50 +58,6 @@ classdef PH_FEM_element < PH_LinearSystem
                 obj.n_elements = 1;
                 
             end  
-            
-            % Look for identical nodes and delete duplicates
-            duplicateNodes = zeros(0,2);
-            for n = 1:obj.n_nodes
-                current = obj.nodes{n};
-                if ~isa(current, 'PH_MechanicalNode') || any(any(duplicateNodes == n))
-                    continue;
-                else
-                    for i=1:obj.n_nodes
-                        if ~(i == n) && isa(obj.nodes{i}, 'PH_MechanicalNode')
-                            if ~any(obj.nodes{i}.location ~= current.location)
-                                duplicateNodes(end+1, 1) = n;
-                                duplicateNodes(end, 2) = i;
-                                break;
-                            end
-                        end
-                    end
-                end
-            end
-            
-            if ~isempty(duplicateNodes)
-                for n = 1:size(duplicateNodes, 1)
-                    current = obj.nodes{duplicateNodes(n, 1)};
-                    current.ports = [current.ports obj.nodes{duplicateNodes(n, 2)}.ports];
-                    current.lockedDOFs = double(current.lockedDOFs | obj.nodes{duplicateNodes(n, 2)}.lockedDOFs);
-                    for p = 1:length(current.ports)
-                        for pn = 1:length(obj.ports{current.ports(p)}.nodes)
-                            if(obj.ports{current.ports(p)}.nodes(pn) == duplicateNodes(n, 2))
-                                obj.ports{current.ports(p)}.nodes(pn) = duplicateNodes(n, 1);
-                            end
-                        end
-                    end
-                    for e = 1:length(current.elements)
-                        for en = 1:length(obj.elements{current.elements(e)}.nodes)
-                            if(obj.elements{current.elements(e)}.nodes(en) == duplicateNodes(n, 2))
-                                obj.elements{current.elements(e)}.nodes(en) = duplicateNodes(n, 1);
-                            end
-                        end
-                    end
-                    obj.nodes{duplicateNodes(n, 2)}.delete();
-                end
-                obj.nodes(duplicateNodes(:, 2)) = [];
-                obj.n_nodes = length(obj.nodes);
-            end           
         end 
         
         function setAttributes(obj, attribs)

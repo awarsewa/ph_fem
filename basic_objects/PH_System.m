@@ -26,9 +26,7 @@ classdef (Abstract) PH_System < matlab.mixin.Copyable
         nodes       % System nodes
     end
     
-    methods (Access = public, Abstract)
-        y       = getSystemOutput(obj, x, u)
-      
+    methods (Access = public, Abstract)     
         add(obj, system)            % Add another element or subsystem
     end
     

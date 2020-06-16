@@ -63,11 +63,6 @@ function [n, J, Q, G] = pH_SaintVenant_PFEM_p(N_p, N_q, I_p, G_t, I_t, L)
          D' zeros(N_q, N_p)];
     % Input matrix + feedthrough matrix
     G = [Bp; zeros(N_q, size(Bp, 2))];
- 
-    
-    % Enforce symmetry/skew-symmetry
-    J = J - (J + J')/2;
-    Q = Q - (Q - Q')/2; 
     
     n = N_p + N_q;
 end

@@ -85,23 +85,28 @@ mesh.fixNodeDOFs(nodes(1,:), [1 1 1 0 0 1]);
 mesh.fixNodeDOFs(nodes(2,:), [1 1 1 0 0 1]);
 mesh.fixNodeDOFs(nodes(3,:), [1 1 1 0 0 1]);
 mesh.fixNodeDOFs(nodes(4,:), [1 1 1 0 0 1]);
-
+% Add Rayleigh damping 
+mesh.addRayleighDamping(0.05, 0.005);
 % Add external forces acting on global DOFs
 mesh.addExternalInputsAtNodes();
 % Generate constraints
 mesh.generateConstraints();
 % Assemble constraint matrix B
 mesh.assembleDAESystem();
-% Eliminate algebraic constraints and linearly dependent states
+% Eliminate algebraic constraints
 mesh.eliminateAlgebraicConstraints();
+% Eliminate linear dependencies between state/effort variables
+mesh.eliminateLinearDependencies();
 % Transform coordinate space to global DOFs
 mesh.transformToGlobalDOFs();
-% Round to 14 decimal places
-mesh.roundSystemMatrices(14);
 
-% Get mass and stiffness matrix
+
+% Get mass, stiffness and damping matrix
 M_ph = mesh.Q(1:mesh.n/2, 1:mesh.n/2)^-1;
 K_ph = mesh.Q(mesh.n/2+1:end, mesh.n/2+1:end);
+D_ph = mesh.R(1:mesh.n/2, 1:mesh.n/2);
+
+
 
 %% Conventional FE
 load elem_types type_*
@@ -134,23 +139,17 @@ M_fe(fixed_dof, :) = [];
 K_fe(fixed_dof, :) = [];
 
 %% Modal Analysis
-
-% Enforce symmetry (not symmetric due to numerical errors)
-M_ph = M_ph - (M_ph - M_ph')/2; 
-K_ph = K_ph - (K_ph - K_ph')/2;
-
 highestMode = 10;
+% Get the eigenvalues
+lambda = mesh.getSmallestMagnitudeEigenvalues(highestMode);
+omega_Hz_ph = sqrt(diag(lambda))/2/pi;
 
+% Compute the eigenvalues of the conventional FE model for comparison
 opts.v0 = ones(size(M_ph, 1),1);
 opts.isreal = 1;
-[~,Lambda] = eigs(K_ph, M_ph, highestMode, 'smallestabs',opts); 
-[omega,~] = sort(sqrt(diag(Lambda)));
-omega_Hz_ph = omega/2/pi;
-
-[~,Lambda] = eigs(K_fe, M_fe, highestMode, 'smallestabs',opts); 
-[omega,~] = sort(sqrt(diag(Lambda)));
+[~,lambda] = eigs(K_fe, M_fe, highestMode, 'smallestabs',opts); 
+[omega,~] = sort(sqrt(diag(lambda)));
 omega_Hz_fe = omega/2/pi;
-
 
 
 %% Simulation
@@ -159,8 +158,7 @@ omega_Hz_fe = omega/2/pi;
 D_ph = M_ph * 0.05 + K_ph * 0.005;
 J = mesh.J;
 Q = mesh.Q; 
-R = [D_ph, zeros(mesh.n/2);
-    zeros(mesh.n/2), zeros(mesh.n/2)];
+R = mesh.R;
 
 A = (J-R)*Q;
 
@@ -187,8 +185,7 @@ odefun_ph = @(t, x) A*x;
 odefun_fe = @(t, x) A_fe*x;
 jacobian_ph = @(t, x) A;
 
-[~, y_ph] = ode15s(odefun_ph, time, x0_ph);
-%[~, y_fe] = ode15s(odefun_fe, time, x0_fe);
+y_ph = linear_gls(odefun_ph, jacobian_ph, time, x0_ph, 2);
 
 %% Plots
 c_x = 1:6:6*13*4;
@@ -199,7 +196,7 @@ x_ph = y_ph(:, n_dofs+1:end);
 x_ph = x_ph(:, c_x);
 
 figure();
-plot(time, 1e3.*x_ph(:, end));
+plot(time, 1e3.*x_ph(:, end-3:end));
 xlabel('time in s');
 ylabel('x-displacement in mm');
 

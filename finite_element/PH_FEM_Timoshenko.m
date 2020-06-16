@@ -52,7 +52,7 @@ classdef PH_FEM_Timoshenko < PH_FEM_Beam_element
             for n = 1:obj.n_nodes
                 %PH_MechanicalPort_boundary(type, nodes, orientation, element, IOPair, inputName, outputName) 
                 obj.ports{n} = PH_MechanicalPort_boundary('torque', n, [0; 1; 0], 1, n, ['M' num2str(n) '_y'], ['w' num2str(n) '_y']);
-                obj.ports{obj.n_nodes+n} = PH_MechanicalPort_boundary('force', 1, n, [0; 0; 1], obj.n_nodes+n, ['F' num2str(n) '_z'], ['v' num2str(n) '_z']);
+                obj.ports{obj.n_nodes+n} = PH_MechanicalPort_boundary('force', n, [0; 0; 1], 1, obj.n_nodes+n, ['F' num2str(n) '_z'], ['v' num2str(n) '_z']);
             end
         end
     end

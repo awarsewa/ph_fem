@@ -1,5 +1,4 @@
 classdef PH_MechanicalNode < PH_Node
-    % Mechanical ports have an additional orientation in x/y/z coordinates
     properties (Access = public) 
         location    % Location of this port in x/y/z coordinates
         lockedDOFs  % DOFs that are locked/fixed
