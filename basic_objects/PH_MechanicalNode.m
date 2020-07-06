@@ -2,7 +2,7 @@ classdef PH_MechanicalNode < PH_Node
     properties (Access = public) 
         location    % Location of this port in x/y/z coordinates
         lockedDOFs  % DOFs that are locked/fixed
-        internal    % If the node is internal, it cannot be coupled
+        internal    % Internal nodes cannot be accessed by external forces
     end
     methods (Access = public)
         function obj = PH_MechanicalNode(ports, elements, location, lockedDOFs)

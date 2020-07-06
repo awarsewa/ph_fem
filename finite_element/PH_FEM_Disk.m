@@ -56,7 +56,7 @@ classdef PH_FEM_Disk < PH_FEM_element
             end
         end
         
-         function setPosition(obj, nodePositions)
+        function setPosition(obj, nodePositions)
             if ~ismatrix(nodePositions) || ...
                 size(nodePositions, 1) ~= 4 || ...
                 size(nodePositions, 2) ~= 3 
@@ -66,7 +66,7 @@ classdef PH_FEM_Disk < PH_FEM_element
             for n = 1:4
                 L0 = norm(obj.nodes{n}.location - obj.nodes{max(mod(n+1, 4),1)}.location);
                 L = norm(nodePositions(n, :) - nodePositions(max(mod(n+1, 4),1), :));
-                if L ~= L0
+                if L - L0 > 1e-12
                     error('When setting the position of a plate, do not change its geometry!');
                 end
             end
@@ -111,13 +111,10 @@ classdef PH_FEM_Disk < PH_FEM_element
                 end
                 % single node at the center
                 if mod(obj.order+1, 2)
-                    nodes(end+1, :) =  0.5*(nodes(4,:) + 0.5*(nodes(3,:) - nodes(4,:)) - nodes(1,:) + 0.5*(nodes(2,:) - nodes(1,:)));
+                    nodes(end+1, :) = nodes(1,:) + 0.5*(nodes(4,:) + 0.5*(nodes(3,:) - nodes(4,:)) - nodes(1,:) + 0.5*(nodes(2,:) - nodes(1,:)));
                 end
             end
             
-            
-            
-            % TODO: orientation of ports
             for n = 1:obj.n_nodes
                 obj.nodes{n}.location = nodes(n, :);
             end

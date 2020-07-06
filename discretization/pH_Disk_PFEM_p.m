@@ -8,6 +8,9 @@ O = [1 nodes_xy(1, :); 1 nodes_xy(2, :); 1 nodes_xy(3,:)];
 if sign(det(O)) <= 0
     error('please give the nodes in counter-clockwise order');
 end
+if order < 1
+    error('order of polynomials must be at least 1');
+end
 
 % number of nodes 
 N = (order+1)^2;
@@ -45,7 +48,7 @@ if order > 1
     end
     % single node at the center
     if mod(order+1, 2)
-        nodes_xy(end+1, :) =  0.5*(nodes_xy(4,:) + 0.5*(nodes_xy(3,:) - nodes_xy(4,:)) - nodes_xy(1,:) + 0.5*(nodes_xy(2,:) - nodes_xy(1,:)));
+        nodes_xy(end+1, :) =  nodes_xy(1,:) + 0.5*(nodes_xy(4,:) + 0.5*(nodes_xy(3,:) - nodes_xy(4,:)) - nodes_xy(1,:) + 0.5*(nodes_xy(2,:) - nodes_xy(1,:)));
         seq_r(end+1) = floor((order+1)/2)+1;
         seq_s(end+1) = floor((order+1)/2)+1;
     end
@@ -104,7 +107,7 @@ for i = 1:4
     Ji{2,2} = @(r,s) Ji{2,2}(r, s) + Ns{i}(r,s).*nodes_xy(i, 2);
 end
 
-N_w = 2* (N - 2) - 1;
+N_w = 2*(order+1) - 1;
 n_w = ceil((N_w +1)/2); 
 [pw, w] = lgwt(n_w, -1, 1);
 

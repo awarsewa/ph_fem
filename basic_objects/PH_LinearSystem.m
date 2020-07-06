@@ -259,12 +259,12 @@ classdef PH_LinearSystem < PH_System
             duplicateNodes = zeros(0,2);
             for n = 1:obj.n_nodes
                 current = obj.nodes{n};
-                if ~isa(current, 'PH_MechanicalNode') || any(any(duplicateNodes == n)) || current.internal
+                if ~isa(current, 'PH_MechanicalNode') || any(any(duplicateNodes == n)) 
                     continue;
                 else
                     for i=1:obj.n_nodes
                         if ~(i == n) && isa(obj.nodes{i}, 'PH_MechanicalNode')
-                            if ~any(obj.nodes{i}.location ~= current.location)
+                            if sum(abs(obj.nodes{i}.location - current.location)) < 1e-14
                                 duplicateNodes(end+1, 1) = n;
                                 duplicateNodes(end, 2) = i;
                                 break;
@@ -354,6 +354,8 @@ classdef PH_LinearSystem < PH_System
             if any(x_p_ == x_q_)
                 error('not applicable when there is direct coupling between the energy variables');
             end
+            %n_dof = rank(obj.G - obj.P);
+            
             Q_1 = obj.Q(obj.x_p, obj.x_p);
             Q_2 = obj.Q(obj.x_q, obj.x_q);
             J_12 = obj.J(obj.x_p, obj.x_q);
@@ -684,7 +686,7 @@ classdef PH_LinearSystem < PH_System
             end
             
             % Check whether there is a block of linearly dependent flows
-            row_idx = ~any(obj.G'-obj.P',1);
+            row_idx = ~any(round(obj.G'-obj.P', 12),1);
             col_idx = any(obj.J(row_idx, :)-obj.R(row_idx,:));
             
             J_sorted = [obj.J(:, col_idx == 1), obj.J(:, col_idx ~=1)]; 
@@ -742,16 +744,15 @@ classdef PH_LinearSystem < PH_System
         % Designed for mechanical systems where the global dofs are given
         % as x = [M dq,  q] for a system M ddq + D dq + K q = B u
         % NOTE: doens't work for hypostatic systems
-        function transformToGlobalDOFs(obj)
+        function transformToGlobalDOFs(obj)      
             row_idx = any(obj.G'-obj.P', 1);
-            %obj.G = obj.G(:, end-3:end);
             G_a = null(obj.G(row_idx,:)');
             T = blkdiag([(obj.G(row_idx, :)'*obj.G(row_idx,:))\obj.G(row_idx,:)'; G_a'], eye(obj.n-sum(row_idx)));
-            
+            %T = blkdiag([pinv(obj.G); G_a'], eye(obj.n-sum(row_idx)));
             if rank(T) < obj.n
                 error('system is singular (maybe hypostatic?)... aborting')
             end
-            
+
             % Left mulitply the system with T. J and R need to be right
             % multiplied with T' to preserve symmetry properties
             obj.J = T*obj.J*T';
@@ -762,14 +763,13 @@ classdef PH_LinearSystem < PH_System
             obj.Q = T'\(obj.Q/T);
             obj.G = T*obj.G;
             obj.P = T*obj.P;
-            
-            
+
             T = blkdiag(eye(obj.n/2), pinv(obj.J(obj.n/2+1:end, 1:obj.n/2)));
 
             if rank(T) < obj.n
                 error('system is singular (maybe hypostatic?)... aborting')
             end
-            
+
             % Again, J and R needs to be right multiplied by T'
             obj.J = T*obj.J*T';
             obj.R = T*obj.R*T';
@@ -777,10 +777,10 @@ classdef PH_LinearSystem < PH_System
             obj.Q = T'\(obj.Q/T);
             obj.G = T*obj.G;
             obj.P = T*obj.P;
-            
+
             obj.x_p = [1:obj.n/2]';
             obj.x_q = [obj.n/2+1:obj.n]';
-            
+
             % We know that this method preserves structural properties...
             % make sure they are not lost due to the numerics involved
             obj.J = obj.J - 0.5*(obj.J+obj.J');
@@ -916,7 +916,7 @@ classdef PH_LinearSystem < PH_System
         function node = getNodeAtLocation(obj, location)
             node = 0;
             for n=1:obj.n_nodes
-                if isa(obj.nodes{n}, 'PH_MechanicalNode') && ~any(obj.nodes{n}.location ~= location)
+                if isa(obj.nodes{n}, 'PH_MechanicalNode') && sum(abs(obj.nodes{n}.location - location)) < 1e-14
                     node = n;
                     break;
                 end
@@ -940,7 +940,7 @@ classdef PH_LinearSystem < PH_System
             n_u0 = obj.n_u;
             for n=1:obj.n_nodes
                 node = obj.nodes{n};
-                if ~isa(node, 'PH_MechanicalNode') %|| node.internal
+                if ~isa(node, 'PH_MechanicalNode') || node.internal
                     continue
                 end
                 
