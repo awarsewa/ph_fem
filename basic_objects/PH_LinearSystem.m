@@ -177,7 +177,12 @@ classdef PH_LinearSystem < PH_System
             if ~isa(system, 'PH_LinearSystem') || ~system.isValidPHSystem()
                 error('system must be a valid ''PH_LinearSystem''');
             end
-               
+            
+            states = ones(system.n, 1);
+            if (sum(states(system.x_p)) + sum(states(system.x_q))) ~= system.n
+                error('system must be separable into two energy domains');
+            end
+            
             N_p = length(system.x_p);
             N = obj.n;            
             N_q = length(system.x_q);
@@ -362,15 +367,74 @@ classdef PH_LinearSystem < PH_System
             J_21 = obj.J(obj.x_q, obj.x_p);
             
             K = -J_21*Q_1*J_12*Q_2;
+            
+            K = K - 0.5*(K-K');
             %{
             if rank(K) < size(K, 1)
                 error('system is singular - eigenvalues cannot be computed');
             end
             %}
+            
+            %[L,U,p] = lu(K,'vector');
+            %Afun = @(x) U\(L\(x(p)));
             opts.v0 = ones(size(K, 1),1);
             opts.isreal = 1;
+            %opts.issym = 1;
+            %opts.tol = 1e-20;
+            %opts.p = floor(size(K, 1)/2);
+            %opts.disp = 1;
             [~, lambda] = eigs(K, n, 'smallestabs',opts); 
             lambda = diag(lambda);
+        end
+        
+        function sys = getSubsystem(obj, x_p, x_q)
+            sys = obj.copy();
+            states = [x_p; x_q];
+            sys.n = length(states);
+            sys.J = sys.J(states, states);
+            sys.R = sys.R(states, states);
+            sys.Q = sys.Q(states, states);
+            sys.G = sys.G(states, :);
+            sys.P = sys.P(states, :);            
+            % Remove inputs that do not influence the subsystem
+            idx_u0 = find(~any(round(sys.G-sys.P, 12)));
+            u_dep = sort(idx_u0, 'descend');
+            ports = sys.getPortsForIOPairs(u_dep);
+            sys.deletePorts(ports);
+            
+            [~, idx_a] = unique(sys.G' - sys.P', 'rows');
+            idx_u0 = find(~ismember(1:size(sys.G,2), idx_a));
+            u_dep = sort(idx_u0, 'descend');
+            ports = sys.getPortsForIOPairs(u_dep);
+            sys.deletePorts(ports);
+            
+            sys.B = sys.B(states, :);
+            sys.C_e = sys.C_e(:, states);
+            sys.C_f = sys.C_f(:, states); 
+            sys.n_c = size(sys.C_u, 1) + size(sys.B, 2);
+            
+            sys.x_p = [1:length(x_p)]';
+            sys.x_q = [length(x_p)+1:length(x_p)+length(x_q)]';
+            
+            % Delete all nodes and elements that do not belong to the
+            % subsystem
+            for n = sys.n_nodes:-1:1
+                ports = sys.getMechanicalPorts(n);
+                if isempty(ports)
+                    % Search elements that belong to this node
+                    for e = sys.n_elements:-1:1
+                        element = sys.elements{e};
+                        if any(element.nodes == n)
+                            sys.elements{e}.delete();
+                            sys.elements(e) = [];
+                            sys.n_elements = sys.n_elements-1;
+                        end
+                    end
+                    sys.nodes{n}.delete();
+                    sys.nodes(n) = [];
+                    sys.n_nodes = sys.n_nodes - 1;
+                end
+            end
         end
         
         % Round all dynamic system matrices (for visualization purposes)
@@ -696,8 +760,8 @@ classdef PH_LinearSystem < PH_System
             G_sorted = [obj.G(row_idx ~= 1, :); obj.G(row_idx == 1, :)];
             P_sorted = [obj.P(row_idx ~= 1, :); obj.P(row_idx == 1, :)];
             
-            row_idx = ~any(G_sorted'-P_sorted', 1);
-            col_idx = any(J_sorted(row_idx, :) - R_sorted(row_idx, :));
+            row_idx = ~any(round(G_sorted'-P_sorted', 12), 1);
+            col_idx = any(round(J_sorted(row_idx, :) - R_sorted(row_idx, :), 12));
             
             if sum(row_idx) > sum(col_idx)
                 % If such a block was found, construct an orthonormal basis 
@@ -744,7 +808,7 @@ classdef PH_LinearSystem < PH_System
         % Designed for mechanical systems where the global dofs are given
         % as x = [M dq,  q] for a system M ddq + D dq + K q = B u
         % NOTE: doens't work for hypostatic systems
-        function transformToGlobalDOFs(obj)      
+        function transformToGlobalDOFs(obj, skip2ndStep)      
             row_idx = any(obj.G'-obj.P', 1);
             G_a = null(obj.G(row_idx,:)');
             T = blkdiag([(obj.G(row_idx, :)'*obj.G(row_idx,:))\obj.G(row_idx,:)'; G_a'], eye(obj.n-sum(row_idx)));
@@ -763,7 +827,15 @@ classdef PH_LinearSystem < PH_System
             obj.Q = T'\(obj.Q/T);
             obj.G = T*obj.G;
             obj.P = T*obj.P;
-
+            obj.B = T*obj.B;
+            
+            obj.x_p = [1:obj.n/2]';
+            obj.x_q = [obj.n/2+1:obj.n]';
+            
+            if nargin > 1 && skip2ndStep
+                return
+            end
+            
             T = blkdiag(eye(obj.n/2), pinv(obj.J(obj.n/2+1:end, 1:obj.n/2)));
 
             if rank(T) < obj.n
@@ -777,9 +849,7 @@ classdef PH_LinearSystem < PH_System
             obj.Q = T'\(obj.Q/T);
             obj.G = T*obj.G;
             obj.P = T*obj.P;
-
-            obj.x_p = [1:obj.n/2]';
-            obj.x_q = [obj.n/2+1:obj.n]';
+            obj.B = T*obj.B;
 
             % We know that this method preserves structural properties...
             % make sure they are not lost due to the numerics involved
@@ -875,21 +945,31 @@ classdef PH_LinearSystem < PH_System
             end
         end
         
-        function dxdt = getStateDerivative(obj, x, u)
-            if nargin < 3
-                error('x and u must be given to calculate dxdt');
+        function [f, dfdx] = getSystemODEfun(obj)
+            if obj.isConstrained()
+                lambda = @(x, u) -(obj.B'*obj.Q*obj.B)\obj.B'*obj.Q*((obj.J-obj.R)*obj.Q*x + (obj.G - obj.P)*u);
+                f = @(x, u) (obj.J-obj.R)*obj.Q*x + (obj.G - obj.P)*u + obj.B*lambda(x, u);
+                dfdx = (obj.J-obj.R)*obj.Q - obj.B*((obj.B'*obj.Q*obj.B)\obj.B')*obj.Q*(obj.J-obj.R)*obj.Q;
+            else
+                f = @(x, u) (obj.J-obj.R)*obj.Q*x + (obj.G - obj.P)*u;
+                dfdx = (obj.J-obj.R)*obj.Q;
             end
-            if ~iscolumn(x) || length(x) ~= obj.n
-                error(['x must be a column vector of length ' num2str(obj.n)]);
-            end
-            if ~iscolumn(u) || length(u) ~= obj.n_u
-                error(['u must be a column vector of length ' num2str(obj.n_u)]);
-            end            
-            dxdt = [(obj.J - obj.R)*obj.Q, obj.G - obj.P] * [x; u];
         end
         
-        function dxdt = getStateDerivativeNoChecks(obj, x, u)           
-            dxdt = [(obj.J - obj.R)*obj.Q, obj.G - obj.P] * [x; u];
+        % Implicit version of the system dynamics
+        function [f, dfdt, x0, dx0] = getSystemDAEfun(obj, x0, u0)
+            if obj.isConstrained()
+                f = @(x, u) [(obj.J-obj.R)*obj.Q*x(1:obj.n) + (obj.G - obj.P)*u + obj.B*x(obj.n+1:obj.n+size(obj.B,2)); obj.B'*obj.Q*obj.x(1:obj.n)];
+                dfdt = blkdiag(eye(obj.n), zeros(size(obj.B,2)));
+                % Consistent initial condition
+                lambda0 = -(obj.B'*obj.Q*obj.B)\obj.B'*obj.Q*((obj.J-obj.R)*obj.Q*x0 + (obj.G - obj.P)*u0);
+                x0 = [x0; lambda0];
+                dx0 = f(x0, u0);
+            else
+                f = @(x, u) (obj.J-obj.R)*obj.Q*x + (obj.G - obj.P)*u;
+                dfdt = eye(obj.n);
+                dx0 = f(x0, u0);
+            end
         end
         
         function y = getSystemOutput(obj, x, u)
@@ -899,8 +979,13 @@ classdef PH_LinearSystem < PH_System
             if ~iscolumn(x) || length(x) ~= obj.n
                 error(['x must be a column vector of length ' num2str(obj.n)]);
             end
-                        
-            y = ((obj.G + obj.P)' * obj.Q * x + (obj.M + obj.S) * u);
+            if obj.isConstrained()
+                % TODO: is it really correct to include the Lagrange
+                % multipliers here?
+                y = (obj.G' + obj.P' - ((obj.B'*obj.Q*obj.B)\obj.B'*obj.Q*obj.G)'*obj.B')*obj.Q*x + (obj.M + obj.S)*u;
+            else
+                y = ((obj.G + obj.P)' * obj.Q * x + (obj.M + obj.S) * u);
+            end
         end
         
         function H = getHamiltonian(obj, x)
@@ -1103,6 +1188,8 @@ classdef PH_LinearSystem < PH_System
             obj.M(:, IOPairs) = [];
             obj.S(IOPairs, :) = [];
             obj.S(:, IOPairs) = [];
+            obj.C_u(:, IOPairs) = [];
+            obj.C_y(:, IOPairs) = [];
             obj.n_u = obj.n_u - length(ports); 
             
             for n=1:obj.n_nodes

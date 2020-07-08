@@ -82,12 +82,31 @@ classdef PH_FEM_mesh < PH_LinearSystem
         function add(obj, system)
             obj.add@PH_LinearSystem(system);
             if isa(system, 'PH_FEM_mesh')  
-                obj.nodeTable = [obj.nodeTable; system.nodeTable];
+                sys_elems = system.elementTable;
+                sys_elems(:, 1:end-1) = sys_elems(:, 1:end-1) + size(obj.nodeTable, 1);
+                sys_elems(:, end) = sys_elems(:, end) + size(obj.elementTypes, 2);
+                obj.nodeTable = [obj.nodeTable; sys_elems];
                 obj.elementTable = [obj.elementTable; system.elementTable];
-                obj.elementTypes = {obj.elementTypes; system.elementTypes};
-                obj.attribs = {obj.attribs; system.attribs};
+                obj.elementTypes = [obj.elementTypes, system.elementTypes];
+                obj.attribs = [obj.attribs; system.attribs];
             end
         end 
+        
+        function sys = getSubsystem(obj, x_p, x_q)
+            sys = obj.getSubsystem@PH_LinearSystem(x_p, x_q);
+            % Remove nodes/elements that do not belong to the subsystem
+            for n = size(sys.nodeTable, 1):-1:1
+                if ~sys.getNodeAtLocation(sys.nodeTable(n,:))
+                    for e = size(sys.elementTable, 1):-1:1
+                        if any(sys.elementTable(e, 1:end-1) == n)
+                            sys.elementTable(e, :) = [];
+                            sys.attribs(e) = [];
+                        end
+                    end
+                    sys.nodeTable(n,:) = [];
+                end
+            end
+        end
                 
     end
     
