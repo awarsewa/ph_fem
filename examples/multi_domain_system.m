@@ -80,70 +80,54 @@ b_p = 0;            % Linear damping coefficient piston
 b_c = b_p;         % Linear damping coefficient cylinder
 
 % PH_HydraulicActuator(beta, m, L, A1, A2, kv, p_s, p_t)
-cylinder_push = PH_HydraulicActuator(beta, m_p, m_c, b_p, b_c, L, A1, A2, kv, p_s, p_t, C_int, C_ext, 'push');
-cylinder_pull = PH_HydraulicActuator(beta, m_p, m_c, b_p, b_c, L, A1, A2, kv, p_s, p_t, C_int, C_ext, 'pull');
-cylinder_push.setPosition([nodes(1,:); nodes(7,:)]);
-cylinder_pull.setPosition([nodes(1,:); nodes(7,:)]);
+cylinder = PH_HydraulicActuator(beta, m_p, m_c, b_p, b_c, L, A1, A2, kv, p_s, p_t, C_int, C_ext);
+cylinder.setPosition([nodes(1,:); nodes(7,:)]);
 
 
 %% System interconnection
 frame = PH_NonlinearSystem.toNonlinearPHSystem(mesh);
-% system with pushing cylinder
-proto_push = frame.copy(); 
-proto_push.add(cylinder_push);
-proto_push.fixNodeDOFs([0 0 0], [1 0 1 0 1 0]);
-proto_push.fixNodeDOFs([4.75 0 0], [1 0 1 0 1 0]);
-proto_push.addExternalInputsAtNodes();
-proto_push.generateConstraints();
-proto_push.assembleDAESystem();
+% frame with cylinder
+proto = frame.copy(); 
+proto.add(cylinder);
+proto.fixNodeDOFs([0 0 0], [1 0 1 0 1 0]);
+proto.fixNodeDOFs([4.75 0 0], [1 0 1 0 1 0]);
+proto.addExternalInputsAtNodes();
+proto.generateConstraints();
+proto.assembleDAESystem();
 
-% system with pulling cylinder
-proto_pull = frame.copy();
-proto_pull.add(cylinder_pull);
-proto_pull.fixNodeDOFs([0 0 0], [1 0 1 0 1 0]);
-proto_pull.fixNodeDOFs([4.75 0 0], [1 0 1 0 1 0]);
-proto_pull.addExternalInputsAtNodes();
-proto_pull.generateConstraints();
-proto_pull.assembleDAESystem();
 
 %% Compilation
 % Precompile functions to achieve ~ x2 speedup
 % If you change any of the parameters, you need to recompile
-if ~exist('p_push.mexw64', 'file')
-    [f_push, df_push] = proto_push.getSystemODEfun();
-    [f_pull, df_pull] = proto_pull.getSystemODEfun();
+if ~exist('prototype.mexw64', 'file')
+    [f, df] = proto.getSystemODEfun();
     
     opts = struct('mex', true, 'verbose', false);
-    C_push = casadi.CodeGenerator('p_push.c', opts);
-    C_push.add(f_push);
-    C_push.add(df_push);
-    C_push.generate();
-    C_pull = casadi.CodeGenerator('p_pull.c', opts);
-    C_pull.add(f_pull);
-    C_pull.add(df_pull);
-    C_pull.generate();
-
+    C = casadi.CodeGenerator('prototype.c', opts);
+    C.add(f);
+    C.add(df);
+    C.generate();
     % Takes several minutes...
-    mex p_push.c -LargeArrayDims;
-    mex p_pull.c -LargeArrayDims;
+    mex prototype.c -LargeArrayDims;
 end
 
 %% Simulation
 x0 = [zeros(mesh.n, 1); 0.1; 0; 0; 0; 1e5; 1e5];
 dt = 0.01;
 time = 0:dt:2;
-u = zeros(proto_push.n_u, length(time));
+u = zeros(proto.n_u, length(time));
 u(2,:) = 0.5e-3*sin(2*pi*time);
+u(3, u(2,:) < 0) = u(2, u(2,:) < 0);
+u(2, u(2,:) < 0) = 0;
   
-x_ph = zeros(proto_push.n, length(time));
+x_ph = zeros(proto.n, length(time));
 h_ph = zeros(1, length(time));
 warning('off', 'MATLAB:nearlySingularMatrix');
 for k=2:length(time)
-    if u(2,k-1) >= 0 
-        x_ph(:, k-1:k) = gls(@(t, x) full(p_push('f',x, u(:, k-1))), @(t, x) full(p_push('dfdx', x, u(:,k-1))), time(k-1:k), x0, 1)'; 
-    else 
-        x_ph(:, k-1:k) = gls(@(t, x) full(p_pull('f', x, u(:, k-1))), @(t, x) full(p_pull('dfdx', x, u(:,k-1))), time(k-1:k), x0, 1)'; 
+    if mod(k, 10) == 0
+        disp([num2str(k/100) 's elapsed...']);
     end
+    x_ph(:, k-1:k) = gls(@(t, x) full(prototype('f',x, u(:, k-1))), @(t, x) full(prototype('dfdx', x, u(:,k-1))), time(k-1:k), x0, 1)'; 
     x0 = x_ph(:, k);
 end
 warning('on', 'MATLAB:nearlySingularMatrix');
@@ -152,13 +136,13 @@ warning('on', 'MATLAB:nearlySingularMatrix');
 close all
 
 % Integrate to get nodal displacements
-y = proto_push.getSystemOutputFun();
-y_ph = zeros(proto_push.n_u, length(time)); 
+y = proto.getSystemOutputFun();
+y_ph = zeros(proto.n_u, length(time)); 
 for k=1:length(time)
     y_ph(:, k) = full(y(x_ph(:,k))); 
 end
 
-d = cumtrapz(y_ph([2 3 5 6 8 9 11 12 14 15 17 18]+2, :), 2)*dt;
+d = cumtrapz(y_ph([2 3 5 6 8 9 11 12 14 15 17 18]+3, :), 2)*dt;
 figure;
 ch = plot(time, d([9 10 11 12], :)*1e3);
 xlabel('time in s');

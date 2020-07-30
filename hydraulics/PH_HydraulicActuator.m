@@ -13,12 +13,11 @@ classdef PH_HydraulicActuator < PH_NonlinearSystem
         p_t     % tank pressure
         C_int   % internal leakage flow coefficient
         C_ext   % external leakage flow coefficient
-        action  % 'push' or 'pull' ...  returns different input matrices
     end
     
     methods(Access = public)
         %              PH_NonlinearSystem(n, J, H, G, R)
-        function obj = PH_HydraulicActuator(beta, m_p, m_c, b_p, b_c, L, A1, A2, kv, p_s, p_t, C_int, C_ext, action)
+        function obj = PH_HydraulicActuator(beta, m_p, m_c, b_p, b_c, L, A1, A2, kv, p_s, p_t, C_int, C_ext)
             x_ = casadi.MX.sym('x', 6, 1);
             J_ = [0     0   1                       0                       0                   0; ...
                   0     0   0                       1                       0                   0; ...
@@ -36,25 +35,18 @@ classdef PH_HydraulicActuator < PH_NonlinearSystem
                  A1*(x_(1)-x_(2))*(beta*(exp(x_(5)/beta)-1)-x_(5)) + ...    % chamber 1 energy
                  A2*(L - x_(1) + x_(2))*(beta*(exp(x_(6)/beta)-1)-x_(6));   % chamber 2 energy
             
-            if strcmp(action, 'pull')
-                G_ = [0 0 0; ...
-                      0 0 0; ... 
-                      -1 0 0; ...
-                      0 -1 0; ...
-                      0 0 beta/(A1*x_(1)-x_(2))*kv*sqrt(x_(5)-p_t); ...
-                      0 0 -beta/(A2*(L-x_(1)+x_(2)))*kv*sqrt(p_s-x_(6))];
-            else
-                G_ = [0 0 0; ...
-                      0 0 0; ... 
-                      -1 0 0; ...
-                      0 -1 0; ...
-                      0 0 beta/(A1*x_(1)-x_(2))*kv*sqrt(p_s-x_(5)); ...
-                      0 0 -beta/(A2*(L-x_(1)+x_(2)))*kv*sqrt(x_(6)-p_t)];
-            end
+            % 3rd input is for x_v >= 0, 4th for x_v <= 0
+            G_ = [0 0 0 0; ...
+                  0 0 0 0; ... 
+                  -1 0 0 0; ...
+                  0 -1 0 0; ...
+                  0 0 beta/(A1*x_(1)-x_(2))*kv*sqrt(p_s-x_(5)), beta/(A1*x_(1)-x_(2))*kv*sqrt(x_(5)-p_t); ...
+                  0 0 -beta/(A2*(L-x_(1)+x_(2)))*kv*sqrt(x_(6)-p_t), -beta/(A2*(L-x_(1)+x_(2)))*kv*sqrt(p_s-x_(6))];
+
             % PH_NonlinearSystem(n, x, J, H, u, G, R)
             obj = obj@PH_NonlinearSystem(6, x_, J_, H_, G_, R_);
 
-            obj.n_ports = 2;
+            obj.n_ports = 4;
             obj.name = 'double acting hydraulic piston actuator';
             
             % Physical parameters
@@ -71,7 +63,6 @@ classdef PH_HydraulicActuator < PH_NonlinearSystem
             obj.p_t = p_t; 
             obj.C_int = C_int;
             obj.C_ext = C_ext;
-            obj.action = action;
             
             % Nodes
             obj.n_nodes = 2;   
@@ -84,11 +75,13 @@ classdef PH_HydraulicActuator < PH_NonlinearSystem
             obj.elements{1} = PH_Element('PH_HydraulicActuator', 1:obj.n_nodes, 1:obj.n_nodes); 
             
             % Ports
-            obj.n_ports = 2;
+            obj.n_ports = 4;
 
             %PH_MechanicalPort_external(type, nodes, orientation, IOPair, inputName, outputName) 
             obj.ports{1} = PH_MechanicalPort_external('force', 2, [1; 0; 0], 1, 'Fp_x', 'vp_x');
             obj.ports{2} = PH_MechanicalPort_external('force', 1, [1; 0; 0], 2, 'Fc_x', 'vc_x');
+            obj.ports{3} = PH_HydraulicPort_external('valve', 3, 'x_v >= 0', 'h');
+            obj.ports{4} = PH_HydraulicPort_external('valve', 4, 'x_v <= 0', 'h');
         end
         
         function setPosition(obj, nodePositions)
@@ -104,7 +97,7 @@ classdef PH_HydraulicActuator < PH_NonlinearSystem
             
             Tr = round(vrrotvec2mat(vrrotvec(dir,nDir)), 12);
             
-            for p=1:obj.n_ports
+            for p=1:2
                 obj.ports{p}.orientation = Tr*obj.ports{p}.orientation;
                 obj.ports{p}.orientation(abs(obj.ports{p}.orientation) < 1e-9) = 0;
                 obj.ports{p}.orientation = obj.ports{p}.orientation/norm(obj.ports{p}.orientation);
@@ -121,9 +114,9 @@ classdef PH_HydraulicActuator < PH_NonlinearSystem
             copyData@PH_NonlinearSystem(obj, cp);
         end
         function cp = copyElement(obj)
-               % PH_HydraulicActuator(beta, m_p, m_c, b_p, b_c, L, A1, A2, kv, p_s, p_t, C_int, C_ext)
+            % PH_HydraulicActuator(beta, m_p, m_c, b_p, b_c, L, A1, A2, kv, p_s, p_t, C_int, C_ext)
             cp = PH_HydraulicActuator(obj.beta, obj.m_p, obj.m_c, obj.b_p, obj.b_c, obj.L, obj.A1, obj.A2, ...
-                                obj.kv, obj.p_s, obj.p_t, obj.C_int, obj.C_ext, obj.action);
+                                obj.kv, obj.p_s, obj.p_t, obj.C_int, obj.C_ext);
             obj.copyData(cp);
         end
     end

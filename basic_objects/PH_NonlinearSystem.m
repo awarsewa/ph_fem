@@ -544,6 +544,10 @@ classdef PH_NonlinearSystem < PH_System
                 y = casadi.Function('y', {obj.x}, {obj.G'*jacobian(obj.H, obj.x)'});
             end
         end
+        
+        function H = getSystemHamiltonian(obj)
+            H = casadi.Function('H', {obj.x}, {obj.H});
+        end
     end
     
     methods (Access = protected)

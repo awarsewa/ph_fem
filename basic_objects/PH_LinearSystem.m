@@ -36,7 +36,7 @@ classdef PH_LinearSystem < PH_System
             end
             obj.n = n;
             
-            if ~ismatrix(J) || any(size(J) ~= n) || ~issymmetric(J, 'skew')
+            if ~ismatrix(J) || any(size(J) ~= n) || ~issymmetric(round(J, 16), 'skew')
                 error('J must be a skew-symmetric nxn matrix');
             end
             obj.J = J;
@@ -63,7 +63,7 @@ classdef PH_LinearSystem < PH_System
             if nargin > 4
                 R = varargin{2};
                 if ~isempty(R)
-                    if ~ismatrix(R) || any(size(R) ~= n) || ~issymmetric(R) || any(round(eig(R),17) < 0)
+                    if ~ismatrix(R) || any(size(R) ~= n) || ~issymmetric(round(R, 16)) || any(round(eig(R),17) < 0)
                         error('R must be a symmetric positive semidefinite nxn matrix');
                     end
                     obj.R = R;
@@ -351,16 +351,11 @@ classdef PH_LinearSystem < PH_System
         % Get the system's first n smallest magnitude eigenvalues
         % NOTE: works only if there is no direct coupling b/w energy variables
         function [lambda, K] = getSmallestMagnitudeEigenvalues(obj, n)
-            x_p_ = zeros(obj.n, 1);
-            %obj.x_p = [1:obj.n/2]';
-            x_p_(obj.x_p) = 1;
-            x_q_ = zeros(obj.n, 1);
-            x_q_(obj.x_q) = 1; 
-            if any(x_p_ == x_q_)
+            % TODO: check the system matrices instead of the p/q indices...
+            if any(ismember(obj.x_p, obj.x_q))
                 error('not applicable when there is direct coupling between the energy variables');
             end
-            %n_dof = rank(obj.G - obj.P);
-            
+ 
             Q_1 = obj.Q(obj.x_p, obj.x_p);
             Q_2 = obj.Q(obj.x_q, obj.x_q);
             J_12 = obj.J(obj.x_p, obj.x_q);
@@ -369,11 +364,10 @@ classdef PH_LinearSystem < PH_System
             K = -J_21*Q_1*J_12*Q_2;
             
             K = K - 0.5*(K-K');
-            %{
+            
             if rank(K) < size(K, 1)
                 error('system is singular - eigenvalues cannot be computed');
             end
-            %}
             
             %[L,U,p] = lu(K,'vector');
             %Afun = @(x) U\(L\(x(p)));
@@ -700,7 +694,7 @@ classdef PH_LinearSystem < PH_System
             obj.n = obj.n - n_ac;
             
             % Map from new to old state variables
-            V_xz = obj.Q\V'*Q_*[eye(obj.n); -Q_22\Q_21];
+            V_xz = V\[eye(obj.n); -Q_22\Q_21];
             obj.x_p = find(abs(V_xz\x_p_) > 1e-10);
             obj.x_q = find(abs(V_xz\x_q_) > 1e-10); 
             
@@ -791,10 +785,34 @@ classdef PH_LinearSystem < PH_System
             end
         end
         
-        function [V_xz] = applyStateTransformation(obj, T)
+        % Perform A modal analysis on the system and truncate high
+        % frequency eigenmodes
+        function [T, V] = transformGeneralizedCoordinates(obj, U)
+            M_ = inv(obj.Q(obj.x_p, obj.x_p));
+            M_ = M_ - 0.5*(M_-M_');
+            %obj.Q(obj.x_p, obj.x_q) = 0;
+            %obj.Q(obj.x_q, obj.x_p) = 0;
+            
+            T = pinv(blkdiag(M_*U, U));
+            V = blkdiag(M_*U, U);
+            obj.Q = pinv(blkdiag(U, M_*U))*obj.Q*V;
+            obj.Q = obj.Q - 0.5*(obj.Q-obj.Q');
+            obj.J = T*obj.J*blkdiag(U, M_*U);
+            obj.J = obj.J - 0.5*(obj.J+obj.J');
+            obj.R = T*obj.R*blkdiag(U, M_*U);
+            obj.R = obj.R - 0.5*(obj.R-obj.R');
+            obj.G = T*obj.G;
+            obj.P = T*obj.P;
+            obj.B = T*obj.B;
+            obj.n = 2*size(U, 2);
+            obj.x_p = [1:obj.n/2]';
+            obj.x_q = [obj.n/2+1:obj.n]';
+        end
+        
+        function V_xz = applyStateTransformation(obj, T)
             % Construct algebraic constraints B_ for linearly dependent
             % states
-            [~,lambda,V] = svd((obj.Q*T)', 0);
+            [~,lambda,V] = svd(T*obj.Q, 0);
             lambda = diag(lambda);
             lambda = lambda / max(lambda);
             if length(lambda) < size(V, 1)
@@ -824,7 +842,7 @@ classdef PH_LinearSystem < PH_System
             % This transformation affects e_p only --> turns to M^-1
             % Q needs to be left multiplied with the inverse of T' and
             % right multiplied with the inverse of T
-            obj.Q = T'\(obj.Q/T);
+            obj.Q = inv(T)'*obj.Q*inv(T);
             obj.G = T*obj.G;
             obj.P = T*obj.P;
             obj.B = T*obj.B;
@@ -846,7 +864,7 @@ classdef PH_LinearSystem < PH_System
             obj.J = T*obj.J*T';
             obj.R = T*obj.R*T';
             % This transformation affects e_q only --> turns to K
-            obj.Q = T'\(obj.Q/T);
+            obj.Q = inv(T)'*obj.Q*inv(T);
             obj.G = T*obj.G;
             obj.P = T*obj.P;
             obj.B = T*obj.B;
@@ -970,6 +988,19 @@ classdef PH_LinearSystem < PH_System
                 dfdt = eye(obj.n);
                 dx0 = f(x0, u0);
             end
+        end
+        
+        function [f_p, f_q] = getSymplecticDEs(obj)
+            % TODO: check the system matrices instead of the p/q indices...
+            if any(ismember(obj.x_p, obj.x_q))
+                error('Not applicable when there is direct coupling between the energy variables');
+            end
+            if obj.isConstrained()
+                error('Separation into energy domains not implemented for constrained systems')
+            end
+            
+            f_p = @(q, u) (obj.J(obj.x_p, obj.x_q)-obj.R(obj.x_p, obj.x_q))*obj.Q(obj.x_q, obj.x_q)*q + (obj.G(obj.x_p, :) - obj.P(obj.x_p, :))*u;
+            f_q = @(p, u) (obj.J(obj.x_q, obj.x_p)-obj.R(obj.x_q, obj.x_p))*obj.Q(obj.x_p, obj.x_p)*p + (obj.G(obj.x_q, :) - obj.P(obj.x_q, :))*u;
         end
         
         function y = getSystemOutput(obj, x, u)
