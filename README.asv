@@ -4,7 +4,7 @@ A nonlinear model of a hydraulic piston actuator is also included that can be co
 The objects [PH_LinearSystem](basic_objects/PH_LinearSystem.m) and [PH_NonlinearSystem](basic_objects/PH_NonlinearSystem.m) provide the core functionality of the framework.
 Code for the spatial discretization of varios mechanical elements is contained in the folder [discretization](discretization).
 A custom tool for calculating the mass and stiffness matrices of systems composed of truss elements and beams is included in [fem_tool](fem_tool).
-It is used for comparing the spatial discretization approach used in the PH formulation to conventional FEM.
+It is used for comparing the spatial discretization approach used in the PH formulation to conventional N
 
 A detailed explanation of the methods and algorithms is available in the corresponding [paper](https://doi.org/10.1016/j.apm.2020.07.038.) (accepted manuscript available on [arxiv](http://arxiv.org/abs/2008.07985)).
 Also, please refer to the provided examples to learn about the usage of the framework. 

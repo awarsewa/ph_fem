@@ -102,11 +102,13 @@ classdef PH_LinearSystem < PH_System
                 end
             end
             
+            % Constraints
             obj.C_e = zeros(0, obj.n);
             obj.C_f = zeros(0, obj.n);
             obj.C_u = zeros(0, obj.n_u);
             obj.C_y = zeros(0, obj.n_u);
             
+            % Lagrange multiplier input matrix
             obj.B = zeros(obj.n, 0);
             if nargin > 8 
                 B = varargin{6};
@@ -119,6 +121,8 @@ classdef PH_LinearSystem < PH_System
             end
             obj.n_c = size(obj.B, 2);
             
+            % Which states are generalized momenta and which
+            % generalized displacements
             if nargin > 10
                 x_p = varargin{7};
                 x_q = varargin{8};
@@ -381,6 +385,8 @@ classdef PH_LinearSystem < PH_System
             lambda = diag(lambda);
         end
         
+        % Get a subsystem with the given states x_p and x_q.
+        % Used for decentralized approaches (substructuring)
         function sys = getSubsystem(obj, x_p, x_q)
             sys = obj.copy();
             states = [x_p; x_q];
@@ -493,7 +499,8 @@ classdef PH_LinearSystem < PH_System
         
         % Generate constraints of the form Cy * y + Cu * u = 0.
         % Constraints are generated automatically for each node. Only the
-        % mechanical domain is supported so far.
+        % mechanical domain is supported so far. Hydraulic actuators are
+        % coupled via their mechanical ports.
         function generateConstraints(obj)
             % Mechanical constraint generation
             [Ce_v, Cf_v, Cu_v, Cy_v] = obj.generateVelocityConstraints();           
@@ -809,6 +816,8 @@ classdef PH_LinearSystem < PH_System
             obj.x_q = [obj.n/2+1:obj.n]';
         end
         
+        % Transform the state space by formulation of algebraic
+        % constraints. T is the transformation matrix between state spaces.
         function V_xz = applyStateTransformation(obj, T)
             % Construct algebraic constraints B_ for linearly dependent
             % states
@@ -941,6 +950,8 @@ classdef PH_LinearSystem < PH_System
             obj.S = gamma*Z_sym*gamma';
         end
         
+        % Provides the possibility to replace the input matrix G by a
+        % user-specified one. Deletes all existing inputs.
         function setInputMatrix(obj, G_)
             if size(G_, 1) ~= obj.n
                 error('input matrix must have n rows');
@@ -955,6 +966,8 @@ classdef PH_LinearSystem < PH_System
             obj.S = zeros(obj.n_u);
         end
         
+        % Returns the input names of the inputs specified by IOPairs in the
+        % form of a cell array of strings
         function names = getInputNames(obj, IOPairs)
             names = cell(1, length(IOPairs));
             ports = obj.getPortsForIOPairs(IOPairs);
@@ -963,6 +976,9 @@ classdef PH_LinearSystem < PH_System
             end
         end
         
+        % Returns the system ODEs as an anonymous function. In the presence
+        % of algebraic constraints, the lagrange multipliers are calculated
+        % to obtain an explicit representation.
         function [f, dfdx] = getSystemODEfun(obj)
             if obj.isConstrained()
                 lambda = @(x, u) -(obj.B'*obj.Q*obj.B)\obj.B'*obj.Q*((obj.J-obj.R)*obj.Q*x + (obj.G - obj.P)*u);
@@ -990,6 +1006,7 @@ classdef PH_LinearSystem < PH_System
             end
         end
         
+        % For symplectic integrators (symplectic Euler)
         function [f_p, f_q] = getSymplecticDEs(obj)
             % TODO: check the system matrices instead of the p/q indices...
             if any(ismember(obj.x_p, obj.x_q))
@@ -1003,6 +1020,7 @@ classdef PH_LinearSystem < PH_System
             f_q = @(p, u) (obj.J(obj.x_q, obj.x_p)-obj.R(obj.x_q, obj.x_p))*obj.Q(obj.x_p, obj.x_p)*p + (obj.G(obj.x_q, :) - obj.P(obj.x_q, :))*u;
         end
         
+        % Returns the system output for a given state and input vector
         function y = getSystemOutput(obj, x, u)
             if nargin < 2
                 error('x must be given to calculate y');
@@ -1019,6 +1037,7 @@ classdef PH_LinearSystem < PH_System
             end
         end
         
+        % Computs the Hamiltonian for a given state vector
         function H = getHamiltonian(obj, x)
             if nargin < 2
                 error('x must be given to calculate z');
@@ -1029,6 +1048,8 @@ classdef PH_LinearSystem < PH_System
             H = (x' * obj.Q * x) / 2;
         end
         
+        % Searches the system's mechanical nodes for the one at the
+        % specified location
         function node = getNodeAtLocation(obj, location)
             node = 0;
             for n=1:obj.n_nodes
@@ -1039,6 +1060,7 @@ classdef PH_LinearSystem < PH_System
             end
         end
         
+        % Fix/lock the specified DOFs of the node indicated by location
         function fixNodeDOFs(obj, location, dofs)
             if ~ismatrix(location) || size(location, 1) ~= 1 || size(location, 2) ~= 3
                 error('location must be supplied as a 1x3 vector');
@@ -1051,6 +1073,7 @@ classdef PH_LinearSystem < PH_System
             obj.nodes{node}.lockedDOFs = dofs;
         end 
         
+        % Adds an external input (force) at each mechanical node
         function addExternalInputsAtNodes(obj)
             % Original number of inputs
             n_u0 = obj.n_u;
@@ -1152,6 +1175,7 @@ classdef PH_LinearSystem < PH_System
             portNumbers = portNumbers(1:nPortsFound);
         end
         
+        % Returns the ports corresponding to the inputs specified by pairs
         function ports = getPortsForIOPairs(obj, pairs)
             ports = zeros(1, length(pairs));
             for p = 1:obj.n_ports
@@ -1241,6 +1265,7 @@ classdef PH_LinearSystem < PH_System
     end
     
     methods (Access = protected)
+        % Internal function used for adding external ports
         function addExternalPort(obj, domain, type, nodes, IOPair, inputName, outputName, orientation)
             if strcmp(domain, 'mechanical')
                 obj.ports{obj.n_ports+1} = PH_MechanicalPort_external(type, nodes, orientation, IOPair, inputName, outputName);
