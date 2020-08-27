@@ -1,5 +1,6 @@
 # Port-Hamiltonian Modeling of 3D Truss Structures and Frames
 The code in this repository can be used to assemble 3D linear elastic mechanical port-Hamiltonian systems composed of beam and rod elements. 
+A nonlinear model of a hydraulic piston actuator is also included that can be coupled with mechanical structures.
 
 A detailed explanation of the methods and algorithms is available in the corresponding [paper](https://doi.org/10.1016/j.apm.2020.07.038.) (accepted manuscript available on [arxiv](http://arxiv.org/abs/2008.07985)).
 Also, please refer to the provided examples to learn about the usage of the framework. 
