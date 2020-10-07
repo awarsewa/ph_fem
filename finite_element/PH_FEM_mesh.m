@@ -85,8 +85,8 @@ classdef PH_FEM_mesh < PH_LinearSystem
                 sys_elems = system.elementTable;
                 sys_elems(:, 1:end-1) = sys_elems(:, 1:end-1) + size(obj.nodeTable, 1);
                 sys_elems(:, end) = sys_elems(:, end) + size(obj.elementTypes, 2);
-                obj.nodeTable = [obj.nodeTable; sys_elems];
-                obj.elementTable = [obj.elementTable; system.elementTable];
+                obj.nodeTable = [obj.nodeTable; system.nodeTable];
+                obj.elementTable = [obj.elementTable; sys_elems];
                 obj.elementTypes = [obj.elementTypes, system.elementTypes];
                 obj.attribs = [obj.attribs; system.attribs];
             end
@@ -107,7 +107,34 @@ classdef PH_FEM_mesh < PH_LinearSystem
                 end
             end
         end
-                
+        
+        function pHLin = PH_LinearSystem(obj)
+            pHLin = PH_LinearSystem(obj.n, obj.J, obj.Q, obj.G, ...
+                                 obj.R, obj.P, obj.S, obj.M, obj.B, obj.x_p, obj.x_q, obj.C);
+            pHLin.C_u = obj.C_u;
+            pHLin.C_y = obj.C_y;
+            pHLin.C_e = obj.C_e;
+            pHLin.C_f = obj.C_f;
+            pHLin.n_c = size(pHLin.C_u, 1) + size(pHLin.B, 2);
+
+            pHLin.n_elements = obj.n_elements;
+            pHLin.elements = cell(obj.n_elements, 1);
+            for e=1:obj.n_elements
+                pHLin.elements{e} = copy(obj.elements{e});
+            end
+
+            pHLin.n_nodes = obj.n_nodes;
+            pHLin.nodes = cell(obj.n_nodes, 1);
+            for n=1:obj.n_nodes
+                pHLin.nodes{n} = copy(obj.nodes{n});
+            end
+
+            pHLin.n_ports = obj.n_ports;
+            pHLin.ports = cell(obj.n_ports, 1);
+            for p=1:obj.n_ports
+                pHLin.ports{p} = copy(obj.ports{p});
+            end
+        end 
     end
     
     methods(Access = protected)        
@@ -129,6 +156,7 @@ classdef PH_FEM_mesh < PH_LinearSystem
             cp.P = obj.P;
             cp.S = obj.S;
             cp.M = obj.M;
+            cp.C = obj.C;
             cp.x_q = obj.x_q;
             cp.x_p = obj.x_p;
             cp.n = obj.n;

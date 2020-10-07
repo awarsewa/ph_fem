@@ -25,7 +25,7 @@ classdef PH_LinearSystem < PH_System
     end
     
     methods(Access = public)
-        %              PH_LinearSystem(n, J, Q, G, R, P, S, M, B, x_p, x_q)
+        %              PH_LinearSystem(n, J, Q, G, R, P, S, M, B, x_p, x_q, C)
         function obj = PH_LinearSystem(n, J, Q, varargin)
             % Sanity checks
             obj = obj@PH_System('Linear port-Hamiltonian system');
@@ -36,7 +36,7 @@ classdef PH_LinearSystem < PH_System
             end
             obj.n = n;
             
-            if ~ismatrix(J) || any(size(J) ~= n) || ~issymmetric(round(J, 16), 'skew')
+            if ~ismatrix(J) || any(size(J) ~= n) || ~issymmetric(round(J, 12), 'skew')
                 error('J must be a skew-symmetric nxn matrix');
             end
             obj.J = J;
@@ -63,7 +63,7 @@ classdef PH_LinearSystem < PH_System
             if nargin > 4
                 R = varargin{2};
                 if ~isempty(R)
-                    if ~ismatrix(R) || any(size(R) ~= n) || ~issymmetric(round(R, 16)) || any(round(eig(R),17) < 0)
+                    if ~ismatrix(R) || any(size(R) ~= n) || ~issymmetric(round(R, 12)) || any(round(eig(R),17) < 0)
                         error('R must be a symmetric positive semidefinite nxn matrix');
                     end
                     obj.R = R;
@@ -123,22 +123,34 @@ classdef PH_LinearSystem < PH_System
             
             % Which states are generalized momenta and which
             % generalized displacements
+            % We assume that the number of generalized momenta equals the
+            % number of generalized displacements and that the generalized
+            % momenta are given first
+            obj.x_p = [1:floor(obj.n/2)]'; 
+            obj.x_q = [floor(obj.n/2)+1:obj.n]'; 
             if nargin > 10
                 x_p = varargin{7};
                 x_q = varargin{8};
-                if ~isvector(x_p) || ~isvector(x_q) || length(x_p) + length(x_q) ~= n
-                    error('x_p and x_q must have a combined length of n')
+                if ~isempty(x_p) && ~isempty(x_q)
+                    if ~isvector(x_p) || ~isvector(x_q) || length(x_p) + length(x_q) ~= n
+                        error('x_p and x_q must have a combined length of n')
+                    end
+                    obj.x_p = x_p;
+                    obj.x_q = x_q;
                 end
-                obj.x_p = x_p;
-                obj.x_q = x_q;
-            else
-                % We assume that the number of generalized momenta equals the
-                % number of generalized displacements and that the generalized
-                % momenta are given first
-                obj.x_p = [1:floor(obj.n/2)]'; 
-                obj.x_q = [floor(obj.n/2)+1:obj.n]'; 
             end
-
+            
+            obj.C = zeros(0, obj.n);
+            if nargin > 11 
+                C = varargin{9};
+                if ~isempty(C)
+                    if size(C, 2) ~= obj.n
+                        error('C must be a n_c x n matrix');
+                    end
+                    obj.C = C; 
+                end
+            end
+            
             obj.n_elements = 1;
             obj.elements{1} = PH_Element('Linear PH system', [], []);
         end
@@ -213,6 +225,13 @@ classdef PH_LinearSystem < PH_System
               
             obj.M = blkdiag(obj.M, system.M);
             obj.S = blkdiag(obj.S, system.S); 
+            
+            if ~isempty(system.C)
+                obj.C = [zeros(size(obj.C, 1), N_p), obj.C, zeros(size(obj.C, 1), N_q);
+                         system.C(:,system.x_p), zeros(size(system.C, 1), obj.n), system.C(:, system.x_q)];
+            else
+                obj.C = [zeros(size(obj.C, 1), N_p), obj.C, zeros(size(obj.C, 1), N_q)];
+            end
             
             if ~isempty(system.R)
                 obj.R = [system.R(system.x_p,system.x_p) zeros(N_p, N) system.R(system.x_p, system.x_q);
@@ -395,14 +414,17 @@ classdef PH_LinearSystem < PH_System
             sys.R = sys.R(states, states);
             sys.Q = sys.Q(states, states);
             sys.G = sys.G(states, :);
-            sys.P = sys.P(states, :);            
+            sys.P = sys.P(states, :);  
+            sys.C = sys.C(:, states); 
             % Remove inputs that do not influence the subsystem
             idx_u0 = find(~any(round(sys.G-sys.P, 12)));
             u_dep = sort(idx_u0, 'descend');
             ports = sys.getPortsForIOPairs(u_dep);
             sys.deletePorts(ports);
+            % Remove outputs that cannot be obtained in the subsystem
+            sys.C(~any(sys.C'), :) = [];
             
-            [~, idx_a] = unique(sys.G' - sys.P', 'rows');
+            [~, idx_a] = unique(sys.G' - sys.P', 'rows', 'last');
             idx_u0 = find(~ismember(1:size(sys.G,2), idx_a));
             u_dep = sort(idx_u0, 'descend');
             ports = sys.getPortsForIOPairs(u_dep);
@@ -437,15 +459,17 @@ classdef PH_LinearSystem < PH_System
             end
         end
         
-        % Round all dynamic system matrices (for visualization purposes)
-        function roundSystemMatrices(obj, decimalPlaces)
-            obj.J = round(obj.J, decimalPlaces);
-            obj.R = round(obj.R, decimalPlaces);
-            obj.Q = round(obj.Q, decimalPlaces);
-            obj.G = round(obj.G, decimalPlaces);
-            obj.P = round(obj.P, decimalPlaces);
-            obj.M = round(obj.M, decimalPlaces);
-            obj.S = round(obj.S, decimalPlaces);
+        % Set all matrix entries of the system matrices to zero whose
+        % absolute values are below the user-defined treshhold
+        function cleanSystemMatrices(obj, treshhold)
+            obj.J(abs(obj.J) < treshhold) = 0;
+            obj.R(abs(obj.R) < treshhold) = 0;
+            obj.Q(abs(obj.Q) < treshhold) = 0;
+            obj.G(abs(obj.G) < treshhold) = 0;
+            obj.P(abs(obj.P) < treshhold) = 0;
+            obj.M(abs(obj.M) < treshhold) = 0;
+            obj.S(abs(obj.S) < treshhold) = 0;
+            %obj.C(abs(obj.C) < treshhold) = 0;
         end
         
         % Coupling constraints for flows, effors, inputs & outputs
@@ -544,6 +568,7 @@ classdef PH_LinearSystem < PH_System
             else
                 obj.B = B_y';
             end
+            obj.B = rref(obj.B')';
             obj.B(:, ~any(obj.B)) = [];    
             obj.C_y(idx_ac, :) = [];
             obj.C_u(idx_ac, :) = [];
@@ -680,6 +705,7 @@ classdef PH_LinearSystem < PH_System
             Q_ = inv(V)'*obj.Q*inv(V);
             G_ = V*obj.G;
             P_ = V*obj.P;
+            C_ = obj.C*V'; 
             
             % Q_ must be positive definite 
             if any(eig(Q_) <= 0)
@@ -710,6 +736,8 @@ classdef PH_LinearSystem < PH_System
             obj.Q = Q_11 - Q_12*(Q_22\Q_21);
             obj.G = G_(1:obj.n, :);     
             obj.P = P_(1:obj.n, :); 
+            obj.C = C_(:, 1:obj.n);
+            
             % We know that this method preserves structural properties...
             % make sure they are not lost due to the numerics involved
             obj.J = obj.J - 0.5*(obj.J+obj.J');
@@ -768,6 +796,7 @@ classdef PH_LinearSystem < PH_System
                 % If such a block was found, construct an orthonormal basis 
                 % to eliminate dependent states
                 A_b = J_sorted(row_idx == 1, :) - R_sorted(row_idx == 1, :);
+                
                 [U,~] = svd(A_b,'econ');
                 T_b = U(:, 1:sum(row_idx == 0));
                 
@@ -811,6 +840,7 @@ classdef PH_LinearSystem < PH_System
             obj.G = T*obj.G;
             obj.P = T*obj.P;
             obj.B = T*obj.B;
+            obj.C = obj.C*blkdiag(U, M_*U);
             obj.n = 2*size(U, 2);
             obj.x_p = [1:obj.n/2]';
             obj.x_q = [obj.n/2+1:obj.n]';
@@ -855,6 +885,7 @@ classdef PH_LinearSystem < PH_System
             obj.G = T*obj.G;
             obj.P = T*obj.P;
             obj.B = T*obj.B;
+            obj.C = obj.C*T';
             
             obj.x_p = [1:obj.n/2]';
             obj.x_q = [obj.n/2+1:obj.n]';
@@ -877,6 +908,7 @@ classdef PH_LinearSystem < PH_System
             obj.G = T*obj.G;
             obj.P = T*obj.P;
             obj.B = T*obj.B;
+            obj.C = obj.C*T';
 
             % We know that this method preserves structural properties...
             % make sure they are not lost due to the numerics involved
@@ -904,6 +936,7 @@ classdef PH_LinearSystem < PH_System
             obj.P = obj.P(e_1, :);
             obj.M = obj.M(e_1, e_1);
             obj.S = obj.S(e_1, e_1);
+            obj.C = obj.C(:, e_1);
         end
         
         % Assuming the system is in some kind of balanced form, use the
@@ -948,6 +981,7 @@ classdef PH_LinearSystem < PH_System
             obj.P = -beta'*Z_sym*gamma';
             obj.M = -eta+gamma*Z_sk*gamma';
             obj.S = gamma*Z_sym*gamma';
+            % NOTE: no idea what to do about C
         end
         
         % Provides the possibility to replace the input matrix G by a
@@ -1309,7 +1343,7 @@ classdef PH_LinearSystem < PH_System
         function cp = copyElement(obj)
             % PH_LinearSystem(n, J, Q, G, R, P, S, M, B)
             cp = PH_LinearSystem(obj.n, obj.J, obj.Q, obj.G, ...
-                                 obj.R, obj.P, obj.S, obj.M, obj.B);
+                                 obj.R, obj.P, obj.S, obj.M, obj.B, obj.x_p, obj.x_q, obj.C);
             % copyData can also be called by subclasses
             obj.copyData(cp);
         end
