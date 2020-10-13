@@ -12,8 +12,8 @@ classdef PH_Port < matlab.mixin.Copyable
                 error('domain must be either ''storage'', ''external'' or ''boundary''.');  
             end
             
-            if ~ischar(domain) || ~(strcmp(domain, 'mechanical') || strcmp(domain, 'electrical') || strcmp(domain, 'hydraulical'))
-                error('domain must be either ''electrical'', ''mechanical'' or ''hydraulical''.');
+            if ~ischar(domain) || ~(strcmp(domain, 'mechanical') || strcmp(domain, 'electrical') || strcmp(domain, 'hydraulic'))
+                error('domain must be either ''electrical'', ''mechanical'' or ''hydraulic''.');
             end
             
             

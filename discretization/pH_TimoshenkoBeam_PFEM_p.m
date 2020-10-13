@@ -1,4 +1,4 @@
-function [n, J, Q, G] = pH_TimoshenkoBeam_PFEM_p(N_p, N_q, rho, E, G, A, I, kappa, L) 
+function [n, J, Q, G, phi_pd] = pH_TimoshenkoBeam_PFEM_p(N_p, N_q, rho, E, G, A, I, kappa, L) 
     % Interpolation interval
     interval = [0, L];
     nodes_p = linspace(0, L, N_p);
@@ -83,4 +83,5 @@ function [n, J, Q, G] = pH_TimoshenkoBeam_PFEM_p(N_p, N_q, rho, E, G, A, I, kapp
       
     % System order
 	n = 2*(N_p+N_q);
+    phi_pd = lagrange_poly_deriv(nodes_p, 1);
 end

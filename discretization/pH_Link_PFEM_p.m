@@ -1,4 +1,4 @@
-function [n, J, Q, G] = pH_Link_PFEM_p(N_p, N_q, myu, E, A, L) 
+function [n, J, Q, G, C] = pH_Link_PFEM_p(N_p, N_q, myu, E, A, L) 
     % Choose number of nodes for flow space
     interval = [0, L];
     nodes_p = linspace(0, L, N_p);
@@ -51,13 +51,19 @@ function [n, J, Q, G] = pH_Link_PFEM_p(N_p, N_q, myu, E, A, L)
         end
     end 
     Bp = phi_p(linspace(0, L, max(N_q,2))')';
+
+    % element length change output matrix
+    n_c = ceil(N_q/2);
+    [mc, w_c] = lgwt(n_c, interval(1), interval(2)); 
+    C = -[zeros(1, N_p), w_c'*phi_q(mc)]./(E*A);
+    
     
     % Energy matrix
     Qq = E*A*M_q^-1;
     Qp = 1/myu*M_p^-1;
     Q = [Qp zeros(N_p, N_q);
         zeros(N_q, N_p) Qq]; 
-
+    
     % Structure matrix
     J = [zeros(N_p, N_q) -D;
          D' zeros(N_q, N_p)];

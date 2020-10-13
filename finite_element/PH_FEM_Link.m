@@ -19,13 +19,13 @@ classdef PH_FEM_Link < PH_FEM_element
             end
 
             if strcmp(type, 'force')
-                [n_, J_, Q_, G_] = pH_Link_PFEM_p(N, N, myu, E, A, L);
+                [n_, J_, Q_, G_, C_] = pH_Link_PFEM_p(N, N, myu, E, A, L);
             else
-                [n_, J_, Q_, G_] = pH_Link_PFEM_q(N, N, myu, E, A, L);
+                [n_, J_, Q_, G_, C_] = pH_Link_PFEM_q(N, N, myu, E, A, L);
             end
 
-            % LinearPHSystem(n, J, Q, G, R, P, S, M, C_u, C_y) 
-            obj = obj@PH_FEM_element(n_, J_, Q_, G_);
+            % PH_LinearSystem(n, J, Q, G, R, P, S, M, B, x_p, x_q, C)
+            obj = obj@PH_FEM_element(n_, J_, Q_, G_, [], [], [], [], [], [], [], C_);
             
             obj.name = 'PH-FEM link element';
             obj.inputType = type;

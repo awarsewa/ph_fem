@@ -17,7 +17,7 @@ classdef PH_FEM_Mindlin < PH_FEM_element
             
             N = (order+1)^2;
             
-            % PH_LinearSystem(n, J, Q, G, R, P, S, M, B, x_p, x_q)
+            % PH_LinearSystem(n, J, Q, G, R, P, S, M, B, x_p, x_q, C)
             x_p_ = [1:3*N]';
             x_q_ = [3*N+1:8*N]';
             obj = obj@PH_FEM_element(n_, J_, Q_, G_, [], [], [], [], [], x_p_, x_q_);
@@ -42,7 +42,7 @@ classdef PH_FEM_Mindlin < PH_FEM_element
             end
             
             obj.elements{1}.delete();
-            obj.elements{1} = PH_Element('PH_FEM_Disk', 1:obj.n_nodes, 1:obj.n_nodes, ...
+            obj.elements{1} = PH_Element('PH_FEM_Plate', 1:obj.n_nodes, 1:obj.n_nodes, ...
                                         'order', order, ...
                                         'corner_nodes', corner_nodes, ...
                                         'Young''s modulus', E, ...

@@ -379,28 +379,16 @@ classdef PH_LinearSystem < PH_System
                 error('not applicable when there is direct coupling between the energy variables');
             end
  
-            Q_1 = obj.Q(obj.x_p, obj.x_p);
-            Q_2 = obj.Q(obj.x_q, obj.x_q);
-            J_12 = obj.J(obj.x_p, obj.x_q);
-            J_21 = obj.J(obj.x_q, obj.x_p);
-            
-            K = -J_21*Q_1*J_12*Q_2;
-            
-            K = K - 0.5*(K-K');
+            Mi = obj.Q(obj.x_p, obj.x_p);
+            K = obj.Q(obj.x_q, obj.x_q);
             
             if rank(K) < size(K, 1)
                 error('system is singular - eigenvalues cannot be computed');
             end
             
-            %[L,U,p] = lu(K,'vector');
-            %Afun = @(x) U\(L\(x(p)));
             opts.v0 = ones(size(K, 1),1);
             opts.isreal = 1;
-            %opts.issym = 1;
-            %opts.tol = 1e-20;
-            %opts.p = floor(size(K, 1)/2);
-            %opts.disp = 1;
-            [~, lambda] = eigs(K, n, 'smallestabs',opts); 
+            [~, lambda] = eigs(K, Mi\eye(size(Mi, 1)), n, 'smallestabs',opts); 
             lambda = diag(lambda);
         end
         
@@ -559,7 +547,6 @@ classdef PH_LinearSystem < PH_System
                 obj.C_f = [];
             end
             
-            
             % Get algebraic constraints
             idx_ac = ~any(obj.C_u');
             B_y = obj.C_y(idx_ac, :) * (obj.G+obj.P)';         
@@ -577,7 +564,7 @@ classdef PH_LinearSystem < PH_System
             % Solve remaining equations for u
             u_f = ones(1, obj.n_u);
             A_uu = eye(obj.n_u);
-            A_ue = zeros(obj.n_u, obj.n);
+            %A_ue = zeros(obj.n_u, obj.n);
             for i = 1:size(obj.C_u, 1)
                 idx_u = find(obj.C_u(i, :), 1);
                 if ~isempty(idx_u)
@@ -587,7 +574,7 @@ classdef PH_LinearSystem < PH_System
                     b = a_uu(idx_u);
                     a_uu(idx_u) = 0;
                     A_uu(idx_u, :) = -b .* a_uu;
-                    A_ue(idx_u, :) = -b .* obj.C_y(i,:)*(obj.G+obj.P)';
+                    %A_ue(idx_u, :) = -b .* obj.C_y(i,:)*(obj.G+obj.P)';
 
                     % Update dependent inputs
                     idx_uc = find(A_uu(:, idx_u));
@@ -595,7 +582,7 @@ classdef PH_LinearSystem < PH_System
                         b = A_uu(idx_uc(k), idx_u);
                         A_uu(idx_uc(k), idx_u) = 0;
                         A_uu(idx_uc(k), :) = A_uu(idx_uc(k), :) + b*A_uu(idx_u, :);
-                        A_ue(idx_uc(k), :) = A_ue(idx_uc(k), :) + b*A_ue(idx_u, :);
+                        %A_ue(idx_uc(k), :) = A_ue(idx_uc(k), :) + b*A_ue(idx_u, :);
                     end
 
                     % Update constraints
@@ -618,7 +605,7 @@ classdef PH_LinearSystem < PH_System
             u_new = find(u_f); 
             u_dep = find(~u_f);
             
-            J_ = obj.J + (obj.G - obj.P) * A_ue;
+            J_ = obj.J; %+ (obj.G - obj.P) * A_ue;
             R_ = obj.R; 
             G_ = (obj.G - obj.P) * A_uu; 
             P_ = zeros(obj.n, size(G_, 2));
@@ -702,16 +689,11 @@ classdef PH_LinearSystem < PH_System
             % Transform system matrices
             J_ = V*obj.J*V';
             R_ = V*obj.R*V';
-            Q_ = inv(V)'*obj.Q*inv(V);
+            Q_ = V'\(obj.Q/V);
             G_ = V*obj.G;
             P_ = V*obj.P;
             C_ = obj.C*V'; 
             
-            % Q_ must be positive definite 
-            if any(eig(Q_) <= 0)
-                error('Positive definiteness of Q lost after constraint elimination... aborting');
-            end
-
             % Partition Q (Q2x will be eliminated) 
             Q_11 = Q_(1:obj.n-n_ac, 1:obj.n-n_ac);
             Q_12 = Q_(1:obj.n-n_ac, obj.n-n_ac+1:end);
@@ -742,7 +724,7 @@ classdef PH_LinearSystem < PH_System
             % make sure they are not lost due to the numerics involved
             obj.J = obj.J - 0.5*(obj.J+obj.J');
             obj.R = obj.R - 0.5*(obj.R-obj.R');
-            obj.Q = obj.Q - 0.5*(obj.Q - obj.Q');
+            obj.Q = obj.Q - 0.5*(obj.Q-obj.Q');
             
             % Did we eliminate constraint forces?
             
@@ -881,7 +863,7 @@ classdef PH_LinearSystem < PH_System
             % This transformation affects e_p only --> turns to M^-1
             % Q needs to be left multiplied with the inverse of T' and
             % right multiplied with the inverse of T
-            obj.Q = inv(T)'*obj.Q*inv(T);
+            obj.Q = T'\(obj.Q/T);
             obj.G = T*obj.G;
             obj.P = T*obj.P;
             obj.B = T*obj.B;
@@ -904,7 +886,7 @@ classdef PH_LinearSystem < PH_System
             obj.J = T*obj.J*T';
             obj.R = T*obj.R*T';
             % This transformation affects e_q only --> turns to K
-            obj.Q = inv(T)'*obj.Q*inv(T);
+            obj.Q = T'\(obj.Q/T);
             obj.G = T*obj.G;
             obj.P = T*obj.P;
             obj.B = T*obj.B;
@@ -914,7 +896,7 @@ classdef PH_LinearSystem < PH_System
             % make sure they are not lost due to the numerics involved
             obj.J = obj.J - 0.5*(obj.J+obj.J');
             obj.R = obj.R - 0.5*(obj.R-obj.R');
-            obj.Q = obj.Q - 0.5*(obj.Q - obj.Q');
+            obj.Q = obj.Q - 0.5*(obj.Q-obj.Q');
         end
         
         % Assuming the system is in some kind of balanced form, use the
