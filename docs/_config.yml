@@ -31,7 +31,7 @@ github_username:  jekyll
 
 # Build settings
 baseurl: /ph_fem
-url: https://ph_fem.github.io
+url: https://awarsewa.github.io
 theme: minima
 plugins:
   - jekyll-feed
