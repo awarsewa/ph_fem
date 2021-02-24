@@ -1,6 +1,8 @@
 # Port-Hamiltonian Modeling of 3D Truss Structures and Frames
 The code in this repository can be used to assemble 3D linear elastic mechanical port-Hamiltonian systems composed of beam and rod elements. 
 A nonlinear model of a hydraulic piston actuator is also included that can be coupled with mechanical structures.
+It was developed in the course of the [Collaborative Research Centre 1244](https://www.sfb1244.uni-stuttgart.de/en/) (CRC 1244) "Adaptive skins and structures for the built environment of tomorrow" funded by the German Resarch Foundation. Please also check project website for further related developments. As of now, the framework in this repository is not actively futher developed by me, but you can still get in touch. Since the CRC 1244 is now in its second funding period, updates to this framework might follow sooner or later and will be linked to here. 
+
 The objects [PH_LinearSystem](basic_objects/PH_LinearSystem.m) and [PH_NonlinearSystem](basic_objects/PH_NonlinearSystem.m) provide the core functionality of the framework.
 Code for the spatial discretization of varios mechanical elements is contained in the folder [discretization](discretization).
 A custom tool for calculating the mass and stiffness matrices of systems composed of truss elements and beams is included in [fem_tool](fem_tool).
@@ -19,6 +21,9 @@ Both are included in the repository so there is also no need to download the who
 
 For the simulation of nonlinear systems (fast calculation of Jacobians), [CasADi](https://web.casadi.org/) is used. 
 Please download a recent version of the tool and add it to the matlab path to run the nonlinear examples. 
+
+## Contributing
+If you'd like to further develop the **ph_fem** code, add examples of its usage or otherwise contribute, feel free to [contact me](mailto:alexander.warsewa@posteo.net). I can add you as a contributer or get you in touch with other people working in the CRC 1244.
 
 ## License 
 See the [LICENSE](LICENSE) file for license rights and limitations (GNU GPL3).
